@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Package, Plus, Edit, Trash2, Save, X, Star, StarOff, Eye, EyeOff } from 'lucide-react';
+import { Package, Plus, Edit, Trash2, Save, X, Star, StarOff, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -138,7 +138,6 @@ const PackageManagement = () => {
   };
 
   const handleSubmit = async () => {
-    // Validation
     if (!formData.package_name.trim()) {
       toast({
         title: 'Error',
@@ -177,7 +176,6 @@ const PackageManagement = () => {
 
     try {
       if (editingPackage) {
-        // Update existing package
         const { error } = await supabase
           .from('packages')
           .update({
@@ -199,7 +197,6 @@ const PackageManagement = () => {
           description: 'Package updated successfully',
         });
       } else {
-        // Create new package
         const { error } = await supabase
           .from('packages')
           .insert({
@@ -318,26 +315,34 @@ const PackageManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <Package className="mr-3 text-blue-500" size={32} />
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Package Management</h2>
-            <p className="text-gray-600">Create and manage gym membership packages</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* <div className="flex items-center">
+          <div className="bg-blue-500 p-2 rounded-lg mr-3">
+            <Package className="text-white" size={24} />
           </div>
-        </div>
-        <Button onClick={openCreateDialog} className="bg-blue-500 hover:bg-blue-600">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Package Management</h2>
+            <p className="text-sm text-gray-600">Create and manage gym membership packages</p>
+          </div>
+        </div> */}
+        <Button 
+          onClick={openCreateDialog} 
+          className="bg-blue-500 hover:bg-blue-600 w-full sm:w-auto"
+          size="sm"
+        >
           <Plus size={16} className="mr-2" />
           Create Package
         </Button>
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <p>Loading packages...</p>
+        <div className="text-center py-16 bg-white rounded-xl shadow">
+          <RefreshCw className="animate-spin mx-auto mb-3 text-blue-500" size={32} />
+          <p className="text-gray-600">Loading packages...</p>
         </div>
       ) : packages.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
+        <div className="text-center py-16 bg-white rounded-xl shadow">
           <Package className="mx-auto mb-4 text-gray-400" size={64} />
           <p className="text-gray-600 mb-4">No packages found</p>
           <Button onClick={openCreateDialog} className="bg-blue-500 hover:bg-blue-600">
@@ -346,39 +351,35 @@ const PackageManagement = () => {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {packages.map((pkg) => (
             <div
               key={pkg.package_id}
-              className={`bg-white rounded-lg shadow-lg p-6 border-2 ${
+              className={`bg-white rounded-xl shadow-lg p-4 sm:p-6 border-2 transition-all hover:shadow-xl ${
                 pkg.is_popular ? 'border-yellow-400' : 'border-transparent'
               } ${!pkg.is_active ? 'opacity-60' : ''}`}
             >
               {/* Package Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-xl font-bold">{pkg.package_name}</h3>
-                    {pkg.is_popular && (
-                      <Star className="text-yellow-400 fill-yellow-400" size={20} />
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 mb-2">{pkg.description}</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      pkg.is_active
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {pkg.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg sm:text-xl font-bold flex-1">{pkg.package_name}</h3>
+                  {pkg.is_popular && (
+                    <Star className="text-yellow-400 fill-yellow-400 flex-shrink-0" size={20} />
+                  )}
                 </div>
+                <p className="text-sm text-gray-600 mb-3 line-clamp-2">{pkg.description}</p>
+                <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                  pkg.is_active
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {pkg.is_active ? 'Active' : 'Inactive'}
+                </span>
               </div>
 
               {/* Price and Duration */}
               <div className="mb-4 pb-4 border-b">
-                <div className="text-3xl font-bold text-blue-600">
+                <div className="text-2xl sm:text-3xl font-bold text-blue-600">
                   ₹{pkg.price.toLocaleString('en-IN')}
                 </div>
                 <div className="text-sm text-gray-600">{getDurationText(pkg.duration_days)}</div>
@@ -390,34 +391,35 @@ const PackageManagement = () => {
                 <ul className="space-y-1">
                   {pkg.features.slice(0, 3).map((feature, index) => (
                     <li key={index} className="text-sm text-gray-600 flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>{feature}</span>
+                      <span className="mr-2 flex-shrink-0">•</span>
+                      <span className="line-clamp-1">{feature}</span>
                     </li>
                   ))}
                   {pkg.features.length > 3 && (
                     <li className="text-sm text-gray-500 italic">
-                      +{pkg.features.length - 3} more features
+                      +{pkg.features.length - 3} more
                     </li>
                   )}
                 </ul>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   onClick={() => openEditDialog(pkg)}
                   size="sm"
                   variant="outline"
-                  className="flex-1"
+                  className="w-full"
                 >
                   <Edit size={14} className="mr-1" />
-                  Edit
+                  <span className="hidden sm:inline">Edit</span>
                 </Button>
                 <Button
                   onClick={() => togglePackageStatus(pkg)}
                   size="sm"
                   variant="outline"
-                  className="flex-1"
+                  className="w-full"
+                  title={pkg.is_active ? 'Deactivate' : 'Activate'}
                 >
                   {pkg.is_active ? <EyeOff size={14} /> : <Eye size={14} />}
                 </Button>
@@ -425,6 +427,8 @@ const PackageManagement = () => {
                   onClick={() => togglePopular(pkg)}
                   size="sm"
                   variant="outline"
+                  className="w-full"
+                  title={pkg.is_popular ? 'Remove Popular' : 'Mark Popular'}
                 >
                   {pkg.is_popular ? <StarOff size={14} /> : <Star size={14} />}
                 </Button>
@@ -432,6 +436,7 @@ const PackageManagement = () => {
                   onClick={() => deletePackage(pkg.package_id)}
                   size="sm"
                   variant="destructive"
+                  className="w-full"
                 >
                   <Trash2 size={14} />
                 </Button>
@@ -445,7 +450,7 @@ const PackageManagement = () => {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
               {editingPackage ? 'Edit Package' : 'Create New Package'}
             </DialogTitle>
           </DialogHeader>
@@ -474,12 +479,12 @@ const PackageManagement = () => {
                 value={formData.description}
                 onChange={handleInputChange}
                 placeholder="Brief description of the package"
-                className="w-full border border-gray-300 rounded-lg p-2 min-h-[80px]"
+                className="w-full border border-gray-300 rounded-lg p-2 min-h-[80px] focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             {/* Price and Duration */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
                   Price (₹) <span className="text-red-500">*</span>
@@ -501,13 +506,12 @@ const PackageManagement = () => {
                   name="duration_days"
                   value={formData.duration_days}
                   onChange={(e) => setFormData(prev => ({ ...prev, duration_days: parseInt(e.target.value) }))}
-                  className="w-full border border-gray-300 rounded-lg p-2"
+                  className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="30">1 Month (30 days)</option>
                   <option value="90">3 Months (90 days)</option>
                   <option value="180">6 Months (180 days)</option>
                   <option value="365">1 Year (365 days)</option>
-                  <option value="custom">Custom</option>
                 </select>
               </div>
             </div>
@@ -529,7 +533,7 @@ const PackageManagement = () => {
                     }
                   }}
                 />
-                <Button onClick={addFeature} type="button">
+                <Button onClick={addFeature} type="button" size="sm">
                   <Plus size={16} />
                 </Button>
               </div>
@@ -541,7 +545,7 @@ const PackageManagement = () => {
                       key={index}
                       className="flex items-center justify-between bg-gray-50 p-2 rounded"
                     >
-                      <span className="text-sm">{feature}</span>
+                      <span className="text-sm flex-1 mr-2">{feature}</span>
                       <Button
                         onClick={() => removeFeature(index)}
                         size="sm"
@@ -556,7 +560,7 @@ const PackageManagement = () => {
             </div>
 
             {/* Checkboxes */}
-            <div className="flex gap-6">
+            <div className="flex flex-col sm:flex-row gap-4">
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
@@ -579,7 +583,7 @@ const PackageManagement = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 pt-4">
+            <div className="flex flex-col sm:flex-row gap-2 pt-4">
               <Button
                 variant="outline"
                 className="flex-1"
@@ -595,7 +599,7 @@ const PackageManagement = () => {
                 onClick={handleSubmit}
               >
                 <Save size={16} className="mr-2" />
-                {editingPackage ? 'Update Package' : 'Create Package'}
+                {editingPackage ? 'Update' : 'Create'}
               </Button>
             </div>
           </div>

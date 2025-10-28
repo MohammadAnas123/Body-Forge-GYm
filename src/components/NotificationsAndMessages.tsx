@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, Mail, Send, MessageSquare, Clock, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Bell, Mail, Send, MessageSquare, Clock, User, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -53,7 +53,6 @@ const NotificationsAndMessages = () => {
 
   const fetchExpiringMemberships = async () => {
     try {
-      // Get all active purchases
       const { data: purchases, error } = await supabase
         .from('user_purchases')
         .select(`
@@ -70,7 +69,6 @@ const NotificationsAndMessages = () => {
 
       if (error) throw error;
 
-      // Filter memberships expiring in 2 days or less
       const today = new Date();
       const twoDaysFromNow = new Date();
       twoDaysFromNow.setDate(today.getDate() + 2);
@@ -140,168 +138,89 @@ const NotificationsAndMessages = () => {
     setReminderDialogOpen(true);
   };
 
-  // Helper function to send reply email
-const sendReplyEmail = async (
-  email: string,
-  userName: string,
-  userSubject: string,
-  userMessage: string,
-  adminReply: string
-) => {
-  try {
-    const response = await fetch("http://localhost:5000/api/send-reply", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        userName,
-        userSubject,
-        userMessage,
-        adminReply,
-      }),
-    });
+  const sendReplyEmail = async (email: string, userName: string, userSubject: string, userMessage: string, adminReply: string) => {
+    try {
+      const response = await fetch("http://localhost:5000/api/send-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, userName, userSubject, userMessage, adminReply }),
+      });
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      return await response.json();
+    } catch (err) {
+      console.error("Error sending reply email:", err);
+      throw err;
+    }
+  };
+
+  const sendReminderEmail = async (email: string, userName: string, packageName: string, daysRemaining: number, endDate: string, message: string) => {
+    try {
+      const response = await fetch("http://localhost:5000/api/send-reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, userName, packageName, daysRemaining, endDate, message }),
+      });
+
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      return await response.json();
+    } catch (err) {
+      console.error("Error sending reminder email:", err);
+      throw err;
+    }
+  };
+
+  const handleReplyToMessage = async () => {
+    if (!selectedMessage || !replyText.trim()) {
+      toast({ title: 'Error', description: 'Please enter a reply message', variant: 'destructive' });
+      return;
     }
 
-    const data = await response.json();
-    return data;
-  } catch (err) {
-    console.error("Error sending reply email:", err);
-    throw err;
-  }
-};
+    setSendingEmail(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('user_messages')
+        .update({
+          admin_reply: replyText,
+          status: 'replied',
+          replied_at: new Date().toISOString(),
+        })
+        .eq('message_id', selectedMessage.message_id);
 
-// Helper function to send reminder email
-const sendReminderEmail = async (
-  email: string,
-  userName: string,
-  packageName: string,
-  daysRemaining: number,
-  endDate: string,
-  message: string
-) => {
-  try {
-    const response = await fetch("http://localhost:5000/api/send-reminder", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        userName,
-        packageName,
-        daysRemaining,
-        endDate,
-        message,
-      }),
-    });
+      if (updateError) throw updateError;
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+      await sendReplyEmail(selectedMessage.email, selectedMessage.name, selectedMessage.subject, selectedMessage.message, replyText);
+
+      toast({ title: 'Success', description: `Reply sent to ${selectedMessage.email}` });
+      setReplyDialogOpen(false);
+      setReplyText('');
+      fetchContactMessages();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to send reply', variant: 'destructive' });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const handleSendReminder = async () => {
+    if (!selectedMembership || !reminderText.trim()) {
+      toast({ title: 'Error', description: 'Please enter a reminder message', variant: 'destructive' });
+      return;
     }
 
-    const data = await response.json();
-    return data;
-  } catch (err) {
-    console.error("Error sending reminder email:", err);
-    throw err;
-  }
-};
-
-// Updated handleReplyToMessage function
-const handleReplyToMessage = async () => {
-  if (!selectedMessage || !replyText.trim()) {
-    toast({
-      title: 'Error',
-      description: 'Please enter a reply message',
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  setSendingEmail(true);
-  try {
-    // Update message with reply in database
-    const { error: updateError } = await supabase
-      .from('user_messages')
-      .update({
-        admin_reply: replyText,
-        status: 'replied',
-        replied_at: new Date().toISOString(),
-      })
-      .eq('message_id', selectedMessage.message_id);
-
-    if (updateError) throw updateError;
-
-    // Send actual email
-    await sendReplyEmail(
-      selectedMessage.email,
-      selectedMessage.name,
-      selectedMessage.subject,
-      selectedMessage.message,
-      replyText
-    );
-
-    toast({
-      title: 'Success',
-      description: `Reply sent to ${selectedMessage.email}`,
-    });
-
-    setReplyDialogOpen(false);
-    setReplyText('');
-    fetchContactMessages();
-  } catch (error: any) {
-    toast({
-      title: 'Error',
-      description: error.message || 'Failed to send reply',
-      variant: 'destructive',
-    });
-  } finally {
-    setSendingEmail(false);
-  }
-};
-
-  // Updated handleSendReminder function
-const handleSendReminder = async () => {
-  if (!selectedMembership || !reminderText.trim()) {
-    toast({
-      title: 'Error',
-      description: 'Please enter a reminder message',
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  setSendingEmail(true);
-  try {
-    // Send actual email
-    await sendReminderEmail(
-      selectedMembership.email,
-      selectedMembership.user_name,
-      selectedMembership.package_name,
-      selectedMembership.days_remaining,
-      selectedMembership.end_date,
-      reminderText
-    );
-
-    toast({
-      title: 'Reminder Sent',
-      description: `Membership expiry reminder sent to ${selectedMembership.user_name}`,
-    });
-
-    setReminderDialogOpen(false);
-    setReminderText('');
-    setSelectedMembership(null);
-  } catch (error: any) {
-    toast({
-      title: 'Error',
-      description: error.message || 'Failed to send reminder',
-      variant: 'destructive',
-    });
-  } finally {
-    setSendingEmail(false);
-  }
-};
+    setSendingEmail(true);
+    try {
+      await sendReminderEmail(selectedMembership.email, selectedMembership.user_name, selectedMembership.package_name, selectedMembership.days_remaining, selectedMembership.end_date, reminderText);
+      toast({ title: 'Reminder Sent', description: `Membership expiry reminder sent to ${selectedMembership.user_name}` });
+      setReminderDialogOpen(false);
+      setReminderText('');
+      setSelectedMembership(null);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to send reminder', variant: 'destructive' });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const markAsResolved = async (messageId: string) => {
     try {
@@ -311,19 +230,10 @@ const handleSendReminder = async () => {
         .eq('message_id', messageId);
 
       if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Message marked as resolved',
-      });
-
+      toast({ title: 'Success', description: 'Message marked as resolved' });
       fetchContactMessages();
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -344,13 +254,15 @@ const handleSendReminder = async () => {
   return (
     <div className="space-y-6">
       {/* Expiring Memberships Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center">
-            <Bell className="mr-3 text-orange-500" size={24} />
+            <div className="bg-orange-500 p-2 rounded-lg mr-3">
+              <Bell className="text-white" size={20} />
+            </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Expiring Memberships</h3>
-              <p className="text-sm text-gray-600">Members whose plans expire within 2 days</p>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Expiring Memberships</h3>
+              <p className="text-xs sm:text-sm text-gray-600">Plans expiring within 2 days</p>
             </div>
           </div>
           {expiringMemberships.length > 0 && (
@@ -370,19 +282,19 @@ const handleSendReminder = async () => {
             {expiringMemberships.map((membership) => (
               <div
                 key={membership.user_id}
-                className="border border-orange-200 bg-orange-50 rounded-lg p-4"
+                className="border border-orange-200 bg-orange-50 rounded-lg p-3 sm:p-4"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <User className="text-orange-600" size={18} />
-                      <h4 className="font-semibold text-lg">{membership.user_name}</h4>
-                      <Badge className="bg-red-500 text-white">
+                <div className="flex flex-col lg:flex-row items-start justify-between gap-3">
+                  <div className="flex-1 w-full">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <User className="text-orange-600 flex-shrink-0" size={18} />
+                      <h4 className="font-semibold text-base sm:text-lg">{membership.user_name}</h4>
+                      <Badge className="bg-red-500 text-white text-xs">
                         {membership.days_remaining} day{membership.days_remaining !== 1 ? 's' : ''} left
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
-                      <p><strong>Email:</strong> {membership.email}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
+                      <p className="break-all"><strong>Email:</strong> {membership.email}</p>
                       <p><strong>Phone:</strong> {membership.contact_number}</p>
                       <p><strong>Package:</strong> {membership.package_name}</p>
                       <p><strong>Expires:</strong> {new Date(membership.end_date).toLocaleDateString()}</p>
@@ -391,7 +303,7 @@ const handleSendReminder = async () => {
                   <Button
                     onClick={() => openReminderDialog(membership)}
                     size="sm"
-                    className="bg-orange-500 hover:bg-orange-600"
+                    className="bg-orange-500 hover:bg-orange-600 w-full lg:w-auto"
                   >
                     <Mail size={14} className="mr-1" />
                     Send Reminder
@@ -404,20 +316,25 @@ const handleSendReminder = async () => {
       </div>
 
       {/* Contact Messages Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 mb-4">
           <div className="flex items-center">
-            <MessageSquare className="mr-3 text-blue-500" size={24} />
+            <div className="bg-blue-500 p-2 rounded-lg mr-3">
+              <MessageSquare className="text-white" size={20} />
+            </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Contact Messages</h3>
-              <p className="text-sm text-gray-600">User queries from contact form</p>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Contact Messages</h3>
+              <p className="text-xs sm:text-sm text-gray-600">User queries from contact form</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          
+          {/* Filter Buttons */}
+          <div className="flex flex-wrap gap-2 w-full lg:w-auto">
             <Button
               variant={filterStatus === 'all' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('all')}
+              className="flex-1 sm:flex-none text-xs sm:text-sm"
             >
               All ({contactMessages.length})
             </Button>
@@ -425,7 +342,7 @@ const handleSendReminder = async () => {
               variant={filterStatus === 'pending' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('pending')}
-              className={filterStatus === 'pending' ? 'bg-orange-500 hover:bg-orange-600' : ''}
+              className={`flex-1 sm:flex-none text-xs sm:text-sm ${filterStatus === 'pending' ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
             >
               Pending ({contactMessages.filter(m => m.status === 'pending').length})
             </Button>
@@ -433,7 +350,7 @@ const handleSendReminder = async () => {
               variant={filterStatus === 'replied' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('replied')}
-              className={filterStatus === 'replied' ? 'bg-blue-500 hover:bg-blue-600' : ''}
+              className={`flex-1 sm:flex-none text-xs sm:text-sm ${filterStatus === 'replied' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
             >
               Replied ({contactMessages.filter(m => m.status === 'replied').length})
             </Button>
@@ -441,7 +358,7 @@ const handleSendReminder = async () => {
               variant={filterStatus === 'resolved' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('resolved')}
-              className={filterStatus === 'resolved' ? 'bg-green-500 hover:bg-green-600' : ''}
+              className={`flex-1 sm:flex-none text-xs sm:text-sm ${filterStatus === 'resolved' ? 'bg-green-500 hover:bg-green-600' : ''}`}
             >
               Resolved ({contactMessages.filter(m => m.status === 'resolved').length})
             </Button>
@@ -449,11 +366,12 @@ const handleSendReminder = async () => {
         </div>
 
         {loading ? (
-          <div className="text-center py-8">
+          <div className="text-center py-12">
+            <RefreshCw className="animate-spin mx-auto mb-3 text-blue-500" size={32} />
             <p className="text-gray-600">Loading messages...</p>
           </div>
         ) : filteredMessages.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
+          <div className="text-center py-12 bg-gray-50 rounded-lg">
             <MessageSquare className="mx-auto mb-2 text-gray-400" size={48} />
             <p className="text-gray-600">No messages found</p>
           </div>
@@ -462,18 +380,18 @@ const handleSendReminder = async () => {
             {filteredMessages.map((message) => (
               <div
                 key={message.message_id}
-                className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="border rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-semibold text-lg">{message.name}</h4>
+                <div className="flex flex-col lg:flex-row items-start justify-between gap-3 mb-3">
+                  <div className="flex-1 w-full">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <h4 className="font-semibold text-base sm:text-lg">{message.name}</h4>
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(message.status)}`}>
                         {message.status.charAt(0).toUpperCase() + message.status.slice(1)}
                       </span>
                     </div>
-                    <div className="text-sm text-gray-600 mb-2">
-                      <p><strong>Email:</strong> {message.email}</p>
+                    <div className="text-xs sm:text-sm text-gray-600 space-y-1 mb-2">
+                      <p className="break-all"><strong>Email:</strong> {message.email}</p>
                       <p><strong>Phone:</strong> {message.phone}</p>
                       <p><strong>Subject:</strong> {message.subject}</p>
                     </div>
@@ -497,7 +415,7 @@ const handleSendReminder = async () => {
                   </div>
                 )}
 
-                <div className="flex gap-2 mt-3">
+                <div className="flex flex-col sm:flex-row gap-2 mt-3">
                   <Button
                     onClick={() => openReplyDialog(message)}
                     size="sm"
@@ -526,14 +444,14 @@ const handleSendReminder = async () => {
 
       {/* Reply Dialog */}
       <Dialog open={replyDialogOpen} onOpenChange={setReplyDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Reply to {selectedMessage?.name}</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Reply to {selectedMessage?.name}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1"><strong>From:</strong> {selectedMessage?.email}</p>
+            <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1 break-all"><strong>From:</strong> {selectedMessage?.email}</p>
               <p className="text-sm text-gray-600 mb-1"><strong>Subject:</strong> {selectedMessage?.subject}</p>
               <p className="text-sm text-gray-700 mt-2"><strong>Message:</strong></p>
               <p className="text-sm text-gray-700">{selectedMessage?.message}</p>
@@ -544,14 +462,14 @@ const handleSendReminder = async () => {
                 Your Reply <span className="text-red-500">*</span>
               </label>
               <textarea
-                className="w-full border border-gray-300 rounded-lg p-3 min-h-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg p-3 min-h-[150px] sm:min-h-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="Type your reply here..."
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 variant="outline"
                 className="flex-1"
@@ -568,7 +486,10 @@ const handleSendReminder = async () => {
                 disabled={sendingEmail || !replyText.trim()}
               >
                 {sendingEmail ? (
-                  'Sending...'
+                  <>
+                    <RefreshCw className="animate-spin mr-2" size={16} />
+                    Sending...
+                  </>
                 ) : (
                   <>
                     <Send size={16} className="mr-1" />
@@ -583,23 +504,25 @@ const handleSendReminder = async () => {
 
       {/* Reminder Dialog */}
       <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Send Membership Expiry Reminder</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Send Membership Expiry Reminder</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
+            <div className="bg-orange-50 border border-orange-200 p-3 sm:p-4 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <AlertCircle className="text-orange-600" size={20} />
+                <AlertCircle className="text-orange-600 flex-shrink-0" size={20} />
                 <p className="font-semibold text-orange-900">Member Details</p>
               </div>
-              <p className="text-sm text-gray-700"><strong>Name:</strong> {selectedMembership?.user_name}</p>
-              <p className="text-sm text-gray-700"><strong>Email:</strong> {selectedMembership?.email}</p>
-              <p className="text-sm text-gray-700"><strong>Package:</strong> {selectedMembership?.package_name}</p>
-              <p className="text-sm text-gray-700">
-                <strong>Expires in:</strong> {selectedMembership?.days_remaining} day{selectedMembership?.days_remaining !== 1 ? 's' : ''}
-              </p>
+              <div className="text-sm text-gray-700 space-y-1">
+                <p><strong>Name:</strong> {selectedMembership?.user_name}</p>
+                <p className="break-all"><strong>Email:</strong> {selectedMembership?.email}</p>
+                <p><strong>Package:</strong> {selectedMembership?.package_name}</p>
+                <p>
+                  <strong>Expires in:</strong> {selectedMembership?.days_remaining} day{selectedMembership?.days_remaining !== 1 ? 's' : ''}
+                </p>
+              </div>
             </div>
 
             <div>
@@ -607,13 +530,13 @@ const handleSendReminder = async () => {
                 Reminder Message <span className="text-red-500">*</span>
               </label>
               <textarea
-                className="w-full border border-gray-300 rounded-lg p-3 min-h-[250px] focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full border border-gray-300 rounded-lg p-3 min-h-[200px] sm:min-h-[250px] focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                 value={reminderText}
                 onChange={(e) => setReminderText(e.target.value)}
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 variant="outline"
                 className="flex-1"
@@ -631,7 +554,10 @@ const handleSendReminder = async () => {
                 disabled={sendingEmail || !reminderText.trim()}
               >
                 {sendingEmail ? (
-                  'Sending...'
+                  <>
+                    <RefreshCw className="animate-spin mr-2" size={16} />
+                    Sending...
+                  </>
                 ) : (
                   <>
                     <Send size={16} className="mr-1" />
