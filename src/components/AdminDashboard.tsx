@@ -380,27 +380,32 @@ const AdminDashboard = () => {
       <header className="bg-white shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-           <div className="flex items-center space-x-3">
-              <div className={`p-2 rounded-lg shadow-sm transition-all ${
-                activeTab === 'users' 
-                  ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-                  : activeTab === 'packages'
-                  ? 'bg-gradient-to-br from-purple-500 to-pink-600'
-                  : 'bg-gradient-to-br from-green-500 to-teal-600'
-              }`}>
-                {activeTab === 'users' && <Users className="text-white" size={20} />}
-                {activeTab === 'packages' && <PackageIcon className="text-white" size={20} />}
-                {activeTab === 'notifications' && <Bell className="text-white" size={20} />}
-              </div>
-              <div>
-                <h1 className="text-base sm:text-lg font-bold text-gray-900">
-                  {activeTab === 'users' && 'User Management'}
-                  {activeTab === 'packages' && 'Package Management'}
-                  {activeTab === 'notifications' && 'Notifications'}
-                </h1>
-                <p className="text-xs text-gray-500 hidden sm:block">Admin Panel</p>
-              </div>
-            </div>
+           <div className="flex items-center space-x-3 sm:space-x-4">
+  {/* Icon container */}
+  <div
+    className={`p-2 sm:p-3 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105 ${
+      activeTab === 'users'
+        ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-300/40 ring-1 ring-blue-400/40'
+        : activeTab === 'packages'
+        ? 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-pink-300/40 ring-1 ring-pink-400/40'
+        : 'bg-gradient-to-br from-green-500 to-teal-600 shadow-green-300/40 ring-1 ring-green-400/40'
+    }`}
+  >
+    {activeTab === 'users' && <Users className="text-white" size={16} />}   {/* 👈 Smaller icon */}
+    {activeTab === 'packages' && <PackageIcon className="text-white" size={16} />}
+    {activeTab === 'notifications' && <Bell className="text-white" size={16} />}
+  </div>
+
+  {/* Text section */}
+  <div>
+    <h1 className="text-sm sm:text-base font-bold text-gray-900">
+      {activeTab === 'users' && 'User Management'}
+      {activeTab === 'packages' && 'Package Management'}
+      {activeTab === 'notifications' && 'Notifications'}
+    </h1>
+    <p className="text-xs text-gray-500 hidden sm:block">Admin Panel</p>
+  </div>
+</div>
             
             <div className="flex items-center space-x-2">
               {/* Mobile Menu Toggle */}

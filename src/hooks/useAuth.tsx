@@ -1,5 +1,5 @@
 // src/hooks/useAuth.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
@@ -9,7 +9,7 @@ interface UserData {
   name: string;
   email: string;
   isAdmin: boolean;
-  status?: string; // 'active' or 'inactive' - for plan validity
+  status?: string;
 }
 
 export const useAuth = () => {
@@ -17,6 +17,7 @@ export const useAuth = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const userDataRef = useRef<UserData | null>(null);
 
   useEffect(() => {
     // Get initial session
@@ -45,12 +46,23 @@ export const useAuth = () => {
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
         
+        // Only fetch user data on specific events, not on TOKEN_REFRESHED
+        if (event === 'TOKEN_REFRESHED' && userDataRef.current) {
+          // Skip fetching user data on token refresh if we already have it
+          console.log('Token refreshed, skipping user data fetch');
+          return;
+        }
+        
         if (session?.user) {
           setUser(session.user);
-          await fetchUserData(session.user.id, session.user.email || '');
+          // Only fetch if user ID changed or we don't have user data
+          if (!userDataRef.current || userDataRef.current.id !== session.user.id) {
+            await fetchUserData(session.user.id, session.user.email || '');
+          }
         } else {
           setUser(null);
           setUserData(null);
+          userDataRef.current = null;
         }
         setLoading(false);
       }
@@ -89,12 +101,14 @@ export const useAuth = () => {
       if (!adminError && adminData) {
         // User is an admin
         console.log('Admin found:', adminData);
-        setUserData({
+        const newUserData = {
           id: userId,
           name: adminData.admin_name || 'Admin',
           email: adminData.admin_email,
           isAdmin: true
-        });
+        };
+        userDataRef.current = newUserData;
+        setUserData(newUserData);
         return;
       }
 
@@ -132,36 +146,43 @@ export const useAuth = () => {
           });
           setUser(null);
           setUserData(null);
+          userDataRef.current = null;
           return;
         }
 
-        setUserData({
+        const newUserData = {
           id: userId,
           name: memberData.user_name || 'User',
           email: memberData.email,
           isAdmin: false,
           status: memberData.status
-        });
+        };
+        userDataRef.current = newUserData;
+        setUserData(newUserData);
         return;
       }
 
       // If neither admin nor user found
       console.warn('User not found in admin_master or user_master');
-      setUserData({
+      const newUserData = {
         id: userId,
         name: email.split('@')[0],
         email: email,
         isAdmin: false
-      });
+      };
+      userDataRef.current = newUserData;
+      setUserData(newUserData);
 
     } catch (error) {
       console.error('Error fetching user data:', error);
-      setUserData({
+      const newUserData = {
         id: userId,
         name: 'User',
         email: email,
         isAdmin: false
-      });
+      };
+      userDataRef.current = newUserData;
+      setUserData(newUserData);
     }
   };
 
@@ -172,6 +193,7 @@ export const useAuth = () => {
       
       setUser(null);
       setUserData(null);
+      userDataRef.current = null;
       
       toast({
         title: 'Success',
