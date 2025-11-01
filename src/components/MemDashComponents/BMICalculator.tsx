@@ -29,15 +29,15 @@ const BMICalculator = ({ setActiveTab }) => {
         onClick={() => setActiveTab("overview")}
         className="text-white hover:text-red-500 flex items-center transition-colors"
       >
-        <ArrowLeft size={20} className="mr-2" />
+        <ArrowLeft size={18} className="mr-2" />
         Back to Dashboard
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* BMI Input & Result */}
         <div className="bg-black/50 border border-blue-500/30 rounded-xl p-6">
-          <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
-            <Weight className="mr-3 text-blue-500" size={28} />
+          <h2 className="text-base font-bold text-white mb-6 flex items-center">
+            <Weight className="mr-3 text-blue-500" size={18} />
             BMI Calculator
           </h2>
 
@@ -98,7 +98,7 @@ const BMICalculator = ({ setActiveTab }) => {
 
         {/* BMI Categories */}
         <div className="bg-black/50 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-white mb-4">BMI Categories</h3>
+          <h3 className="text-base font-bold text-white mb-4">BMI Categories</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 sm:p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm">
               <span className="text-white font-medium">Underweight</span>

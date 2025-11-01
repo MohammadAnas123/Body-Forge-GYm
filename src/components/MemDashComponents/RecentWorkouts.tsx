@@ -4,8 +4,8 @@ import { CheckCircle2, Clock, Dumbbell, Flame } from "lucide-react";
 const RecentWorkouts = ({ workoutLogs, setActiveTab }) => {
   return (
     <div className="bg-black/50 border border-green-500/30 rounded-lg sm:rounded-xl p-4 sm:p-6">
-      <h3 className="text-lg sm:text-xl font-bold text-white mb-4 flex items-center">
-        <CheckCircle2 className="mr-2 text-green-500" size={20} />
+      <h3 className="text-base sm:text-lg font-bold text-white mb-4 flex items-center">
+        <CheckCircle2 className="mr-2 text-green-500" size={16} />
         Recent Workouts
       </h3>
 

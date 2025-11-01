@@ -29,8 +29,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 const WeeklyActivity = ({ workoutStats }) => {
   return (
     <div className="bg-black/50 border border-blue-500/30 rounded-lg sm:rounded-xl p-4 sm:p-6">
-      <h3 className="text-lg sm:text-xl font-bold text-white mb-4 flex items-center">
-        <Activity className="mr-2 text-blue-500" size={20} />
+      <h3 className="text-base sm:text-lg font-bold text-white mb-4 flex items-center">
+        <Activity className="mr-2 text-blue-500" size={16} />
         Weekly Activity
       </h3>
 

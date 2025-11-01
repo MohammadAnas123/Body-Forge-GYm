@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -394,22 +394,6 @@ const MemberDashboard = () => {
     return streak;
   };
 
-  const calculateBMI = () => {
-    const heightInMeters = parseFloat(bmiData.height) / 100;
-    const weightInKg = parseFloat(bmiData.weight);
-    
-    if (heightInMeters && weightInKg) {
-      const bmi = (weightInKg / (heightInMeters * heightInMeters)).toFixed(1);
-      let category = '';
-      
-      if (bmi < 18.5) category = 'Underweight';
-      else if (bmi < 25) category = 'Normal';
-      else if (bmi < 30) category = 'Overweight';
-      else category = 'Obese';
-      
-      setBmiData({ ...bmiData, bmi, category });
-    }
-  };
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -516,10 +500,10 @@ const MemberDashboard = () => {
         {/* Measurements Tab */}
         {activeTab === 'measurements' && (
           <AddMeasurements
-  measurements={measurements}
-  setActiveTab={setActiveTab}
-  setShowMeasurementModal={setShowMeasurementModal}
-/>
+            measurements={measurements}
+            setActiveTab={setActiveTab}
+            setShowMeasurementModal={setShowMeasurementModal}
+          />
         )}
 
         {/* BMI Tab */}
@@ -535,15 +519,15 @@ const MemberDashboard = () => {
         {/* Workout Tab */}
         {activeTab === 'workout' && (
           <WorkoutDashboard
-          setActiveTab={setActiveTab}
-          setShowWorkoutModal={setShowWorkoutModal}
-          workoutLogs={workoutLogs}
-          workoutStats={workoutStats}
-          totalWorkouts={workoutLogs.length}
-          currentStreak={3}
-          weeklyWorkouts={5}
-          CustomTooltip={() => <div>Tooltip</div>}
-        />
+            setActiveTab={setActiveTab}
+            setShowWorkoutModal={setShowWorkoutModal}
+            workoutLogs={workoutLogs}
+            workoutStats={workoutStats}
+            totalWorkouts={workoutLogs.length}
+            currentStreak={currentStreak}
+            weeklyWorkouts={5}
+            CustomTooltip={() => <div>Tooltip</div>}
+          />
         )}
       </div>
 
@@ -617,98 +601,97 @@ const MemberDashboard = () => {
             </div>
 
             <div className="space-y-3">
-  {/* Date */}
-  <div>
-    <label className="text-white block mb-1 text-sm">Date</label>
-    <input
-      type="date"
-      value={newWorkout.date}
-      onChange={(e) => setNewWorkout({ ...newWorkout, date: e.target.value })}
-      className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
-    />
-  </div>
+              {/* Date */}
+              <div>
+                <label className="text-white block mb-1 text-sm">Date</label>
+                <input
+                  type="date"
+                  value={newWorkout.date}
+                  onChange={(e) => setNewWorkout({ ...newWorkout, date: e.target.value })}
+                  className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                />
+              </div>
 
-  {/* Workout Type */}
-  <div>
-    <label className="text-white block mb-1 text-sm">Workout Type *</label>
-        <Listbox value={newWorkout.type} onChange={(value) => setNewWorkout({ ...newWorkout, type: value })}>
-      <div className="relative">
-        {/* Button that shows the currently selected workout type */}
-        <Listbox.Button className="w-full bg-black/50 border border-gray-800 text-white rounded-lg px-3 py-2 text-sm flex justify-between items-center">
-          {newWorkout.type || 'Select workout type'}
-          <ChevronDown className="text-gray-400" size={16} />
-        </Listbox.Button>
+              {/* Workout Type */}
+              <div>
+                <label className="text-white block mb-1 text-sm">Workout Type *</label>
+                    <Listbox value={newWorkout.type} onChange={(value) => setNewWorkout({ ...newWorkout, type: value })}>
+                  <div className="relative">
+                    {/* Button that shows the currently selected workout type */}
+                    <Listbox.Button className="w-full bg-black/50 border border-gray-800 text-white rounded-lg px-3 py-2 text-sm flex justify-between items-center">
+                      {newWorkout.type || 'Select workout type'}
+                      <ChevronDown className="text-gray-400" size={16} />
+                    </Listbox.Button>
 
-        {/* Options list */}
-        <Listbox.Options className="absolute mt-1 w-full bg-black/100 border border-gray-700 rounded-lg z-10 max-h-60 overflow-auto text-white">
-          {workoutOptions.map((option) => (
-            <Listbox.Option
-              key={option}
-              value={option} // this sets newWorkout.type when selected
-              className={({ active }) =>
-                `cursor-pointer px-3 py-2 ${active ? 'bg-purple-500/30' : ''}`
-              }
-            >
-              {option}
-            </Listbox.Option>
-          ))}
-        </Listbox.Options>
-      </div>
-    </Listbox>
-  </div>
+                    {/* Options list */}
+                    <Listbox.Options className="absolute mt-1 w-full bg-black/100 border border-gray-700 rounded-lg z-10 max-h-60 overflow-auto text-white">
+                      {workoutOptions.map((option) => (
+                        <Listbox.Option
+                          key={option}
+                          value={option} // this sets newWorkout.type when selected
+                          className={({ active }) =>
+                            `cursor-pointer px-3 py-2 ${active ? 'bg-purple-500/30' : ''}`
+                          }
+                        >
+                          {option}
+                        </Listbox.Option>
+                      ))}
+                    </Listbox.Options>
+                  </div>
+                </Listbox>
+              </div>
 
-  {/* Numeric Inputs */}
-  <div className="grid grid-cols-3 gap-3">
-    <div>
-      <label className="text-white block mb-1 text-sm">Duration (min) *</label>
-      <input
-        type="number"
-        value={newWorkout.duration}
-        onChange={(e) => setNewWorkout({ ...newWorkout, duration: e.target.value })}
-        className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
-        placeholder="45"
-      />
-    </div>
-    <div>
-      <label className="text-white block mb-1 text-sm">Exercises</label>
-      <input
-        type="number"
-        value={newWorkout.exercises}
-        onChange={(e) => setNewWorkout({ ...newWorkout, exercises: e.target.value })}
-        className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
-        placeholder="8"
-      />
-    </div>
-    <div>
-      <label className="text-white block mb-1 text-sm">Calories</label>
-      <input
-        type="number"
-        value={newWorkout.calories}
-        onChange={(e) => setNewWorkout({ ...newWorkout, calories: e.target.value })}
-        className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
-        placeholder="320"
-      />
-    </div>
-  </div>
+              {/* Numeric Inputs */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-white block mb-1 text-sm">Duration (min) *</label>
+                  <input
+                    type="number"
+                    value={newWorkout.duration}
+                    onChange={(e) => setNewWorkout({ ...newWorkout, duration: e.target.value })}
+                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    placeholder="45"
+                  />
+                </div>
+                <div>
+                  <label className="text-white block mb-1 text-sm">Exercises</label>
+                  <input
+                    type="number"
+                    value={newWorkout.exercises}
+                    onChange={(e) => setNewWorkout({ ...newWorkout, exercises: e.target.value })}
+                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    placeholder="8"
+                  />
+                </div>
+                <div>
+                  <label className="text-white block mb-1 text-sm">Calories</label>
+                  <input
+                    type="number"
+                    value={newWorkout.calories}
+                    onChange={(e) => setNewWorkout({ ...newWorkout, calories: e.target.value })}
+                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    placeholder="320"
+                  />
+                </div>
+              </div>
 
-  {/* Action Buttons */}
-  <div className="flex gap-3 mt-4">
-    <button
-      onClick={() => setShowWorkoutModal(false)}
-      className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg transition-colors text-sm"
-    >
-      Cancel
-    </button>
-    <button
-      onClick={addWorkout}
-      className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg transition-colors flex items-center justify-center text-sm"
-    >
-      <Save size={16} className="mr-2" />
-      Save
-    </button>
-  </div>
-</div>
-
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowWorkoutModal(false)}
+                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addWorkout}
+                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg transition-colors flex items-center justify-center text-sm"
+                >
+                  <Save size={16} className="mr-2" />
+                  Save
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

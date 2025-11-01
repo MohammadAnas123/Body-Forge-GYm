@@ -46,7 +46,10 @@ const QuickLink = ({ setActiveTab }) => {
       {actions.map((action) => (
         <button
           key={action.id}
-          onClick={() => setActiveTab(action.id)}
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setActiveTab(action.id);
+        }}
           className={`bg-gradient-to-br ${action.gradient} border ${action.border} rounded-lg sm:rounded-xl p-4 sm:p-6 ${action.hover} transition-all group flex flex-col items-center justify-center text-center`}
         >
           {action.icon}

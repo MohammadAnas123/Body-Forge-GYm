@@ -63,11 +63,11 @@ const WeightProgress = ({
         <div className="flex items-center justify-between w-full sm:w-auto">
           <div className="flex items-center gap-2">
             <BarChart3
-              className={`text-red-500 ${isMobile ? "w-5 h-5" : "w-6 h-6"}`}
+              className={`text-red-500 ${isMobile ? "w-4 h-4" : "w-5 h-5"}`}
             />
             <h2
               className={`font-bold text-white ${
-                isMobile ? "text-lg" : "text-xl sm:text-2xl"
+                isMobile ? "text-base" : "text-base sm:text-lg"
               }`}
             >
               Weight Progress
@@ -84,7 +84,7 @@ const WeightProgress = ({
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex items-center justify-between gap-2 bg-gray-800/80 border border-red-500/30 px-4 py-2 rounded-lg text-sm text-white font-medium hover:bg-gray-800 transition-colors min-w-[100px]"
+                className="flex items-center justify-between gap-1 bg-gray-800/80 border border-red-500/30 px-3 py-1.5 rounded-lg text-[14px] text-white font-medium hover:bg-gray-800 transition-colors min-w-[80px]"
               >
                 <span>{selectedPeriod.toUpperCase()}</span>
                 <ChevronDown 
@@ -95,7 +95,7 @@ const WeightProgress = ({
                 />
               </button>
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-full min-w-[100px] bg-gray-900 border border-red-500/30 rounded-lg shadow-xl overflow-hidden z-20">
+                <div className="absolute right-0 mt-1 w-full min-w-[80px] bg-gray-900 border border-red-500/30 rounded-lg shadow-xl overflow-hidden z-20">
                   {periods.map((period, index) => (
                     <button
                       key={period}
@@ -103,7 +103,7 @@ const WeightProgress = ({
                         setSelectedPeriod(period);
                         setDropdownOpen(false);
                       }}
-                      className={`w-full text-center px-4 py-2.5 text-sm font-medium transition-colors ${
+                      className={`w-full text-center px-4 py-1.5 text-sm font-medium transition-colors ${
                         selectedPeriod === period
                           ? 'bg-red-500/20 text-red-400 border-l-2 border-red-500'
                           : 'text-gray-300 hover:bg-red-500/10 hover:text-white'

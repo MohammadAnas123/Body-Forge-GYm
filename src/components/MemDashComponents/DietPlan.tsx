@@ -15,7 +15,7 @@ const DietPlan = ({ setActiveTab }) => {
 
       {/* Diet Plan Container */}
       <div className="bg-black/50 border border-green-500/30 rounded-xl p-4 sm:p-6 space-y-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+        <h2 className="text-base sm:text-xl font-bold text-white mb-4">
           General Diet Guidelines
         </h2>
 

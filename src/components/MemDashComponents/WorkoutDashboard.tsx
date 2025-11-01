@@ -43,8 +43,8 @@ const WorkoutDashboard = ({
         onClick={() => setActiveTab("overview")}
         className="text-white hover:text-red-500 flex items-center transition-colors"
       >
-        <ArrowLeft size={20} className="mr-2" />
-        Back to Dashboard
+        <ArrowLeft size={18} className="mr-2" />
+          Back to Dashboard
       </button>
 
       {/* Main Grid */}
@@ -54,15 +54,15 @@ const WorkoutDashboard = ({
           {/* Workout History */}
           <div className="bg-black/50 border border-purple-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4 sm:mb-6">
-              <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-center">
-                <Dumbbell className="mr-2 sm:mr-3 text-purple-500" size={28} />
+              <h2 className="text-base sm:text-lg font-bold text-white flex items-center">
+                <Dumbbell className="mr-2 sm:mr-3 text-purple-500" size={18} />
                 Workout History
               </h2>
               <button
                 onClick={() => setShowWorkoutModal(true)}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg flex items-center transition-colors text-sm sm:text-base"
+                className="bg-purple-500 hover:bg-purple-600 text-white px-2 sm:px-3 py-1.5 sm:py-1.5 rounded-lg flex items-center transition-colors text-[13px] sm:text-sm"
               >
-                <Plus size={16} className="mr-1 sm:mr-2" />
+                <Plus size={15} className="mr-1 sm:mr-2" />
                 Log Workout
               </button>
             </div>
@@ -127,13 +127,15 @@ const WorkoutDashboard = ({
 
           {/* This Week's Activity */}
           <div className="bg-black/50 border border-blue-500/30 rounded-xl p-4 sm:p-6">
-            <h3 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4 flex items-center">
-              <BarChart3 className="mr-2 sm:mr-3 text-blue-500" size={24} />
+            <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center">
+              <BarChart3 className="mr-2 sm:mr-3 text-blue-500" size={16} />
               This Week's Activity
             </h3>
             <div style={{ width: "100%", height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={workoutStats}>
+                <BarChart data={workoutStats} 
+                  margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis dataKey="day" stroke="#888" />
                   <YAxis stroke="#888" />
@@ -149,38 +151,38 @@ const WorkoutDashboard = ({
         <div className="space-y-6">
           {/* Monthly Stats */}
           <div className="bg-black/50 border border-green-500/30 rounded-xl p-4 sm:p-6 space-y-3">
-            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 flex items-center">
-              <Award className="mr-2 sm:mr-3 text-green-500" size={24} />
+            <h3 className="text-base sm:text-lg font-bold text-white mb-2 flex items-center">
+              <Award className="mr-2 sm:mr-3 text-green-500" size={18} />
               This Month
             </h3>
             <div className="space-y-3">
               <div className="bg-gradient-to-r from-green-500/10 to-transparent border border-green-500/20 rounded-lg p-3 sm:p-4">
                 <p className="text-gray-400 text-xs sm:text-sm mb-1">Total Workouts</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{totalWorkouts}</p>
+                <p className="text-xl sm:text-2xl font-bold text-white">{totalWorkouts}</p>
               </div>
               <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/20 rounded-lg p-3 sm:p-4">
                 <p className="text-gray-400 text-xs sm:text-sm mb-1">Total Time</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{totalHours}</p>
+                <p className="text-xl sm:text-2xl font-bold text-white">{totalHours}</p>
                 <p className="text-blue-400 text-xs sm:text-sm">hours</p>
               </div>
               <div className="bg-gradient-to-r from-orange-500/10 to-transparent border border-orange-500/20 rounded-lg p-3 sm:p-4">
                 <p className="text-gray-400 text-xs sm:text-sm mb-1">Calories Burned</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{totalCalories}</p>
+                <p className="text-xl sm:text-2xl font-bold text-white">{totalCalories}</p>
               </div>
             </div>
           </div>
 
           {/* Achievements */}
           <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-4 sm:p-6 space-y-3">
-            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 flex items-center">
-              <Flame className="mr-2 sm:mr-3 text-yellow-500" size={24} />
+            <h3 className="text-base sm:text-lg font-bold text-white mb-2 flex items-center">
+              <Flame className="mr-2 sm:mr-3 text-yellow-500" size={18} />
               Achievements
             </h3>
             <div className="space-y-2">
               {currentStreak > 0 && (
                 <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                   <div className="bg-yellow-500/20 p-1 sm:p-2 rounded-lg">
-                    <Award className="text-yellow-500" size={18} />
+                    <Award className="text-yellow-500" size={16} />
                   </div>
                   <div>
                     <p className="text-white font-semibold text-xs sm:text-sm">
@@ -193,7 +195,7 @@ const WorkoutDashboard = ({
               {weeklyWorkouts >= 5 && (
                 <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
                   <div className="bg-purple-500/20 p-1 sm:p-2 rounded-lg">
-                    <Target className="text-purple-500" size={18} />
+                    <Target className="text-purple-500" size={16} />
                   </div>
                   <div>
                     <p className="text-white font-semibold text-xs sm:text-sm">Goal Crusher</p>

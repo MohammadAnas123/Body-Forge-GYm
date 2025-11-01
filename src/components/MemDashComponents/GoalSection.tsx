@@ -223,8 +223,8 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
   return (
     <>
       <div className="bg-black/50 border border-purple-500/30 rounded-lg sm:rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 flex items-center">
-          <Target className="mr-2 text-purple-500" size={20} />
+        <h3 className="text-base sm:text-lg font-bold text-white mb-4 flex items-center">
+          <Target className="mr-2 text-purple-500" size={16} />
           Your Goals
         </h3>
         <div >

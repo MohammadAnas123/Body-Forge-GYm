@@ -1,4 +1,5 @@
 import React from "react";
+
 import { ArrowLeft, Plus, TrendingUp, Ruler } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -32,11 +33,11 @@ const AddMeasurements = ({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-row justify-between items-center gap-2 sm:gap-3">
+      <div className="flex flex-row justify-between items-center gap-1 sm:gap-2">
         <button onClick={() => setActiveTab('overview')}
             className="text-white hover:text-red-500 flex items-center transition-colors"
         >
-            <ArrowLeft size={20} className="mr-2" />
+            <ArrowLeft size={18} className="mr-2" />
               Back to Dashboard
         </button>
 
@@ -55,8 +56,8 @@ const AddMeasurements = ({
         <div className="space-y-4 sm:space-y-6">
           {/* Trend Chart */}
           <div className="bg-black/50 border border-red-500/30 rounded-lg sm:rounded-xl p-3 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 flex items-center">
-              <TrendingUp className="mr-2 text-red-500" size={20} />
+            <h2 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center">
+              <TrendingUp className="mr-2 text-red-500" size={16} />
               Body Measurements Trend
             </h2>
 
@@ -122,7 +123,7 @@ const AddMeasurements = ({
 
           {/* Latest Measurement Cards - Clean Compact Design */}
           <div className="space-y-3">
-            <h3 className="text-base sm:text-lg font-semibold text-white flex items-center">
+            <h3 className="text-sm sm:text-base font-semibold text-white flex items-center">
               Recent Measurements
               <span className="ml-2 text-xs text-gray-500">
                 (Last {latestMeasurements.length})
