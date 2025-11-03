@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, Mail, Send, MessageSquare, Clock, User, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Bell, Mail, Send, MessageSquare, Clock, User, CheckCircle, XCircle, AlertCircle, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -255,69 +255,101 @@ const NotificationsAndMessages = () => {
     <div className="space-y-6">
       {/* Expiring Memberships Section */}
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-          <div className="flex items-center">
-            <div className="bg-orange-500 p-2 rounded-lg mr-3">
-              <Bell className="text-white" size={20} />
-            </div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Expiring Memberships</h3>
-              <p className="text-xs sm:text-sm text-gray-600">Plans expiring within 2 days</p>
-            </div>
-          </div>
-          {expiringMemberships.length > 0 && (
-            <Badge className="bg-orange-500 text-white">
-              {expiringMemberships.length} Alert{expiringMemberships.length !== 1 ? 's' : ''}
-            </Badge>
-          )}
-        </div>
-
-        {expiringMemberships.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <CheckCircle className="mx-auto mb-2 text-green-500" size={48} />
-            <p className="text-gray-600">No memberships expiring soon</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {expiringMemberships.map((membership) => (
-              <div
-                key={membership.user_id}
-                className="border border-orange-200 bg-orange-50 rounded-lg p-3 sm:p-4"
-              >
-                <div className="flex flex-col lg:flex-row items-start justify-between gap-3">
-                  <div className="flex-1 w-full">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <User className="text-orange-600 flex-shrink-0" size={18} />
-                      <h4 className="font-semibold text-base sm:text-lg">{membership.user_name}</h4>
-                      <Badge className="bg-red-500 text-white text-xs">
-                        {membership.days_remaining} day{membership.days_remaining !== 1 ? 's' : ''} left
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
-                      <p className="break-all"><strong>Email:</strong> {membership.email}</p>
-                      <p><strong>Phone:</strong> {membership.contact_number}</p>
-                      <p><strong>Package:</strong> {membership.package_name}</p>
-                      <p><strong>Expires:</strong> {new Date(membership.end_date).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => openReminderDialog(membership)}
-                    size="sm"
-                    className="bg-orange-500 hover:bg-orange-600 w-full lg:w-auto"
-                  >
-                    <Mail size={14} className="mr-1" />
-                    Send Reminder
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+    <div className="flex items-center">
+      <div className="bg-orange-500 p-2 rounded-lg mr-3">
+        <Bell className="text-white" size={20} />
       </div>
+      <div>
+        <h3 className="text-lg sm:text-xl font-bold text-gray-900">Expiring Memberships</h3>
+        <p className="text-xs sm:text-sm text-gray-600">Plans expiring within 2 days</p>
+      </div>
+    </div>
+    {expiringMemberships.length > 0 && (
+      <Badge className="bg-orange-500 text-white">
+        {expiringMemberships.length} Alert{expiringMemberships.length !== 1 ? 's' : ''}
+      </Badge>
+    )}
+  </div>
+
+  {expiringMemberships.length === 0 ? (
+    <div className="text-center py-8 bg-gray-50 rounded-lg">
+      <CheckCircle className="mx-auto mb-2 text-green-500" size={48} />
+      <p className="text-gray-600">No memberships expiring soon</p>
+    </div>
+  ) : (
+    <div
+      className="expiring-memberships-list space-y-3 overflow-y-auto pr-1"
+      style={{ maxHeight: 300 }}
+    >
+      <style>{`
+        .expiring-memberships-list {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(251,146,60,0.18) transparent; /* Firefox */
+        }
+        .expiring-memberships-list::-webkit-scrollbar {
+          width: 6px;
+        }
+        .expiring-memberships-list::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .expiring-memberships-list::-webkit-scrollbar-thumb {
+          background: rgba(251,146,60,0);
+          border-radius: 9999px;
+          box-shadow: none;
+          transition: background 150ms ease, box-shadow 150ms ease;
+        }
+        .expiring-memberships-list:hover::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, rgba(251,146,60,0.18), rgba(251,146,60,0.12));
+          box-shadow: 0 0 8px rgba(251,146,60,0.06), inset 0 0 2px rgba(0,0,0,0.4);
+        }
+        .expiring-memberships-list:hover::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, rgba(251,146,60,0.28), rgba(251,146,60,0.16));
+          box-shadow: 0 0 10px rgba(251,146,60,0.08);
+        }
+      `}</style>
+
+      {expiringMemberships.map((membership) => (
+        <div
+          key={membership.user_id}
+          className="border border-orange-200 bg-orange-50 rounded-lg p-3 sm:p-4 hover:bg-orange-100 hover:shadow-md transition-all cursor-pointer"
+        >
+          <div className="flex flex-col lg:flex-row items-start justify-between gap-3">
+            <div className="flex-1 w-full">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <User className="text-orange-600 flex-shrink-0" size={18} />
+                <h4 className="font-semibold text-base sm:text-lg">{membership.user_name}</h4>
+                <Badge className="bg-red-500 text-white text-xs">
+                  {membership.days_remaining} day{membership.days_remaining !== 1 ? 's' : ''} left
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
+                <p className="break-all"><strong>Email:</strong> {membership.email}</p>
+                <p><strong>Phone:</strong> {membership.contact_number}</p>
+                <p><strong>Package:</strong> {membership.package_name}</p>
+                <p><strong>Expires:</strong> {new Date(membership.end_date).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => openReminderDialog(membership)}
+              size="sm"
+              className="bg-orange-500 hover:bg-orange-600 w-full lg:w-auto"
+            >
+              <Mail size={14} className="mr-1" />
+              Send Reminder
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
 
       {/* Contact Messages Section */}
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 mb-4">
+      <div className="bg-white p-4 rounded-xl shadow-md mb-6">
+        <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
+          <div className="flex gap-2 w-full lg:flex-1 items-center justify-between">
           <div className="flex items-center">
             <div className="bg-blue-500 p-2 rounded-lg mr-3">
               <MessageSquare className="text-white" size={20} />
@@ -327,43 +359,77 @@ const NotificationsAndMessages = () => {
               <p className="text-xs sm:text-sm text-gray-600">User queries from contact form</p>
             </div>
           </div>
+          {/* Refresh Button beside search on mobile only */}
+            <div className="lg:hidden">
+                <Button
+                onClick={fetchContactMessages}
+                variant="outline"
+                size="sm"
+                className="flex items-center rounded-full text-xs"
+                >
+                <RefreshCw size={14} className="mr-1" />
+                </Button>
+            </div>
+            </div>
           
           {/* Filter Buttons */}
-          <div className="flex flex-wrap gap-2 w-full lg:w-auto">
-            <Button
-              variant={filterStatus === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('all')}
-              className="flex-1 sm:flex-none text-xs sm:text-sm"
+
+
+          <div className="relative -mx-2 sm:mx-0">
+            <div
+            className="flex gap-1 overflow-x-auto no-scrollbar px-2 py-2 sm:overflow-visible sm:flex-wrap sm:justify-end  rounded-lg "
             >
-              All ({contactMessages.length})
-            </Button>
-            <Button
-              variant={filterStatus === 'pending' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('pending')}
-              className={`flex-1 sm:flex-none text-xs sm:text-sm ${filterStatus === 'pending' ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
+            {[
+                { label: `All (${contactMessages.length})`, key: "all", color: "black" },
+                { label: `Pending (${contactMessages.filter(m => m.status === 'pending').length})`, key: "pending", color: "orange" },
+                { label: `Replied (${contactMessages.filter(m => m.status === 'replied').length})`, key: "replied", color: "blue" },
+                { label: `Resolved (${contactMessages.filter(m => m.status === 'resolved').length})`, key: "resolved", color: "green" },
+            ].map((btn) => (
+                <Button
+                key={btn.key}
+                variant={filterStatus === btn.key ? "default" : "outline"}
+                onClick={() => setFilterStatus(btn.key)}
+                size="sm"
+                className={`flex-shrink-0 rounded-full px-4 text-xs font-semibold transition-all duration-300
+                ${
+                    filterStatus === btn.key
+                    ? btn.color === "black"
+                        ? "bg-black text-white shadow-md scale-105"
+                        : `bg-${btn.color}-500 hover:bg-${btn.color}-600 text-white shadow-md scale-105`
+                    : "bg-white text-gray-700 hover:bg-gray-100 border-gray-200"
+                }`}
             >
-              Pending ({contactMessages.filter(m => m.status === 'pending').length})
-            </Button>
+                {btn.label}
+                </Button>
+            ))}
+            <div className="hidden sm:inline">
             <Button
-              variant={filterStatus === 'replied' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('replied')}
-              className={`flex-1 sm:flex-none text-xs sm:text-sm ${filterStatus === 'replied' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+                onClick={fetchContactMessages}
+                variant="outline"
+                size="sm"
+                className="flex-shrink-0 rounded-full text-xs"
             >
-              Replied ({contactMessages.filter(m => m.status === 'replied').length})
+                <RefreshCw size={14} className="mr-1" />
+                <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button
-              variant={filterStatus === 'resolved' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('resolved')}
-              className={`flex-1 sm:flex-none text-xs sm:text-sm ${filterStatus === 'resolved' ? 'bg-green-500 hover:bg-green-600' : ''}`}
-            >
-              Resolved ({contactMessages.filter(m => m.status === 'resolved').length})
-            </Button>
-          </div>
+            </div>
+            </div>
+
+            {/* Optional mobile fade effect */}
+            <div className="pointer-events-none absolute top-0 left-0 h-full w-6 bg-gradient-to-r from-gray-50 to-transparent sm:hidden" />
+            <div className="pointer-events-none absolute top-0 right-0 h-full w-6 bg-gradient-to-l from-gray-50 to-transparent sm:hidden" />
         </div>
+      </div>
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        `}</style>
+        
 
         {loading ? (
           <div className="text-center py-12">
@@ -376,69 +442,112 @@ const NotificationsAndMessages = () => {
             <p className="text-gray-600">No messages found</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredMessages.map((message) => (
-              <div
-                key={message.message_id}
-                className="border rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
-              >
-                <div className="flex flex-col lg:flex-row items-start justify-between gap-3 mb-3">
-                  <div className="flex-1 w-full">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <h4 className="font-semibold text-base sm:text-lg">{message.name}</h4>
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(message.status)}`}>
-                        {message.status.charAt(0).toUpperCase() + message.status.slice(1)}
-                      </span>
-                    </div>
-                    <div className="text-xs sm:text-sm text-gray-600 space-y-1 mb-2">
-                      <p className="break-all"><strong>Email:</strong> {message.email}</p>
-                      <p><strong>Phone:</strong> {message.phone}</p>
-                      <p><strong>Subject:</strong> {message.subject}</p>
-                    </div>
-                    <p className="text-sm text-gray-700 mb-2">
-                      <strong>Message:</strong> {message.message}
-                    </p>
-                    <p className="text-xs text-gray-500 flex items-center">
-                      <Clock size={12} className="mr-1" />
-                      {new Date(message.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+          <div
+  className="messages-list space-y-3 overflow-y-auto pr-1"
+  style={{ maxHeight: 400 }}
+>
+  <style>{`
+    .messages-list {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(34,197,94,0.18) transparent; /* Firefox */
+    }
+    .messages-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .messages-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .messages-list::-webkit-scrollbar-thumb {
+      background: rgba(34,197,94,0);
+      border-radius: 9999px;
+      box-shadow: none;
+      transition: background 150ms ease, box-shadow 150ms ease;
+    }
+    .messages-list:hover::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(34,197,94,0.18), rgba(34,197,94,0.12));
+      box-shadow: 0 0 8px rgba(34,197,94,0.06), inset 0 0 2px rgba(0,0,0,0.4);
+    }
+    .messages-list:hover::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, rgba(34,197,94,0.28), rgba(34,197,94,0.16));
+      box-shadow: 0 0 10px rgba(34,197,94,0.08);
+    }
+  `}</style>
 
-                {message.admin_reply && (
-                  <div className="mt-3 pt-3 border-t bg-blue-50 p-3 rounded">
-                    <p className="text-sm font-semibold text-blue-900 mb-1">Admin Reply:</p>
-                    <p className="text-sm text-blue-800">{message.admin_reply}</p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      Replied on {new Date(message.replied_at!).toLocaleString()}
-                    </p>
-                  </div>
-                )}
+  {filteredMessages.length === 0 ? (
+    <div className="text-center py-6 sm:py-8 text-gray-500">
+      <Mail className="mx-auto mb-2 opacity-50" size={28} />
+      <p className="text-xs sm:text-sm">No messages found</p>
+    </div>
+  ) : (
+    filteredMessages.map((message) => (
+      <div
+        key={message.message_id}
+        className="border rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow bg-white"
+      >
+        <div className="flex flex-col lg:flex-row items-start justify-between gap-3 mb-3">
+          <div className="flex-1 w-full">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <h4 className="font-semibold text-base sm:text-lg">{message.name}</h4>
+              <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(message.status)}`}>
+                {message.status.charAt(0).toUpperCase() + message.status.slice(1)}
+              </span>
+            </div>
 
-                <div className="flex flex-col sm:flex-row gap-2 mt-3">
-                  <Button
-                    onClick={() => openReplyDialog(message)}
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    <Mail size={14} className="mr-1" />
-                    {message.status === 'pending' ? 'Reply' : 'Edit Reply'}
-                  </Button>
-                  {message.status !== 'resolved' && (
-                    <Button
-                      onClick={() => markAsResolved(message.message_id)}
-                      size="sm"
-                      className="flex-1 bg-green-500 hover:bg-green-600"
-                    >
-                      <CheckCircle size={14} className="mr-1" />
-                      Mark Resolved
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
+            <div className="text-xs sm:text-sm text-gray-600 space-y-1 mb-2">
+              <p className="break-all"><strong>Email:</strong> {message.email}</p>
+              <p><strong>Phone:</strong> {message.phone}</p>
+              <p><strong>Subject:</strong> {message.subject}</p>
+            </div>
+
+            <p className="text-sm text-gray-700 mb-2">
+              <strong>Message:</strong> {message.message}
+            </p>
+
+            <p className="text-xs text-gray-500 flex items-center">
+              <Clock size={12} className="mr-1" />
+              {new Date(message.created_at).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' })} at {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
+        </div>
+
+        {message.admin_reply && (
+          <div className="mt-3 pt-3 border-t bg-blue-50 p-3 rounded">
+            <p className="text-sm font-semibold text-blue-900 mb-1">Admin Reply:</p>
+            <p className="text-sm text-blue-800">{message.admin_reply}</p>
+            <p className="text-xs text-blue-600 mt-1">
+              Replied on {new Date(message.replied_at).toLocaleDateString("en-GB", { day:'2-digit', month:'short', year:'numeric' })} at {new Date(message.replied_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-row sm:flex-row gap-2 mt-3">
+          <Button
+            onClick={() => openReplyDialog(message)}
+            size="sm"
+            variant="outline"
+            className="flex-1"
+          >
+            <Mail size={14} className="mr-1" />
+            {message.status === 'pending' ? 'Reply' : 'Edit Reply'}
+          </Button>
+
+          {message.status !== 'resolved' && (
+            <Button
+              onClick={() => markAsResolved(message.message_id)}
+              size="sm"
+              variant="outline"
+              className="flex-1 border-2 border-green-500 bg-gradient-to-r from-green-50/30 to-green-80/20 text-green-700 hover:from-green-20/50 hover:to-green-100/40 hover:text-green-800 transition-all rounded-md flex items-center justify-center"
+            >
+              <CheckCircle size={14} className="mr-1" />
+              Mark Resolved
+            </Button>
+          )}
+        </div>
+      </div>
+    ))
+  )}
+</div>
+
         )}
       </div>
 
@@ -446,7 +555,15 @@ const NotificationsAndMessages = () => {
       <Dialog open={replyDialogOpen} onOpenChange={setReplyDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Reply to {selectedMessage?.name}</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Reply to {selectedMessage?.name}
+              <button
+              onClick={() => setReplyDialogOpen(false)}
+              className="absolute right-6 top-7 rounded-sm opacity-70 transition-opacity hover:opacity-100 disabled:pointer-events-none"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </button>
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -469,7 +586,7 @@ const NotificationsAndMessages = () => {
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-row sm:flex-row gap-2">
               <Button
                 variant="outline"
                 className="flex-1"
@@ -506,7 +623,16 @@ const NotificationsAndMessages = () => {
       <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Send Membership Expiry Reminder</DialogTitle>
+            <DialogTitle className="text-base sm:text-xl">Membership Expiry Reminder</DialogTitle>
+            <button
+              onClick={() => {
+                setReminderDialogOpen(false);
+              }}
+              className="absolute right-4 top-3 right-3 rounded-sm opacity-70 transition-opacity hover:opacity-100 disabled:pointer-events-none"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </button>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -536,7 +662,7 @@ const NotificationsAndMessages = () => {
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-row sm:flex-row gap-2">
               <Button
                 variant="outline"
                 className="flex-1"

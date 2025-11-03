@@ -138,7 +138,21 @@ export const useAuth = () => {
         
         // Check if user is not approved
         if (!memberData.admin_approved) {
-          await supabase.auth.signOut();
+          // Try signing out remotely; treat missing/expired sessions as non-fatal
+          try {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+              const msg = (error?.message || '').toString();
+              if (msg.toLowerCase().includes('auth session') || msg.toLowerCase().includes('no active session') || msg.toLowerCase().includes('session missing')) {
+                console.warn('signOut during fetchUserData: remote session missing', msg);
+              } else {
+                throw error;
+              }
+            }
+          } catch (err) {
+            console.error('Error signing out during fetchUserData:', err);
+          }
+
           toast({
             title: 'Approval Pending',
             description: 'Your account is pending admin approval.',
@@ -189,17 +203,29 @@ export const useAuth = () => {
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
+
+      // Supabase may return an error when there is no active session (e.g. "Auth
+      // session missing"). Treat that as an already-signed-out state and proceed
+      // to clear local state so the UI doesn't get stuck.
+      if (error) {
+        const msg = (error?.message || '').toString();
+        if (msg.toLowerCase().includes('auth session') || msg.toLowerCase().includes('no active session') || msg.toLowerCase().includes('session missing')) {
+          console.warn('signOut: remote session missing - treating as logged out', msg);
+        } else {
+          throw error;
+        }
+      }
+
+      // Clear local auth state regardless
       setUser(null);
       setUserData(null);
       userDataRef.current = null;
-      
+
       toast({
         title: 'Success',
         description: 'Logged out successfully',
       });
-      
+
       // Optionally redirect to home
       window.location.href = '#home';
     } catch (error: any) {

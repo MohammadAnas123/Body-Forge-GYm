@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabaseClient';
@@ -17,9 +16,7 @@ import BMICalculator from '@/components/MemDashComponents/BMICalculator';
 import DietPlan from '@/components/MemDashComponents/DietPlan';
 import WorkoutDashboard from '@/components/MemDashComponents/WorkoutDashboard';
 import { Listbox } from '@headlessui/react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from 'recharts';
-import { TrendingUp, TrendingDown, ChevronDown, Calendar, Activity, Weight, Ruler, Apple, Dumbbell, LogOut, ArrowLeft, Target,
-         Award, Plus, ChevronRight, Flame, Clock, CheckCircle2, BarChart3, X, Save, Loader, CreditCard} from 'lucide-react';
+import { ChevronDown, X, Save, Loader} from 'lucide-react';
 
 const MemberDashboard = () => {
   const { user, userName, signOut } = useAuth();
@@ -43,7 +40,6 @@ const MemberDashboard = () => {
   const [showMeasurementModal, setShowMeasurementModal] = useState(false);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
-  const [currentWeight, setCurrentWeight] = useState();
 
   // Form states
   const [newMeasurement, setNewMeasurement] = useState({
@@ -102,38 +98,6 @@ const MemberDashboard = () => {
       });
     }
   }, [signOut, navigate, toast]);
-
-  // ✅ Fetch today's measurement (autopopulate)
-  const fetchTodayMeasurement = async () => {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const { data, error } = await supabase
-      .from("user_measurements") // your table name
-      .select("weight, chest, waist, hips, arms, thighs, created_at, measurement_id")
-      .eq("user_id", user.id)
-      .gte("created_at", startOfDay.toISOString())
-      .lte("created_at", endOfDay.toISOString())
-      .single();
-    console.log("Data:::"+data);
-    if (error && error.code !== "PGRST116") console.error("Fetch error:", error);
-    if (data) {
-      setCurrentWeight(data.weight);
-      setNewMeasurement({
-        weight: data.weight || '',
-        chest: data.chest || '',
-        waist: data.waist || '',
-        hips: data.hips || '',
-        arms: data.arms || '',
-        thighs: data.thighs || '',
-      });
-      setRecordId(data.measurement_id);
-      setIsUpdateMeasurement(true);
-    }
-  };
-
   // Fetch all data from Supabase
   useEffect(() => {
     if (user) {
@@ -194,7 +158,7 @@ const MemberDashboard = () => {
         setWorkoutLogs(workoutsData || []);
       }
 
-      fetchTodayMeasurement();
+      // fetchTodayMeasurement();
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load data. Please try again.');
@@ -447,54 +411,54 @@ const MemberDashboard = () => {
         handleLogout={handleLogout}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6">
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-6 sm:space-y-8">
-          {/* Quick Stats Grid */}
-          
-          <StatsOverview
-            getDaysRemaining={getDaysRemaining}
-            activeMembership={activeMembership}
-            weeklyWorkouts={weeklyWorkouts}
-            weightChange={weightChange}
-            totalCalories={totalCalories}
-          />
-
-          {/* Main Content Grid */}
-          <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
-            {/* Progress Chart */}
-            <WeightProgress
-              filteredWeightData={filteredWeightData}
-              selectedPeriod={selectedPeriod}
-              setSelectedPeriod={setSelectedPeriod}
-              setActiveTab={setActiveTab}
-            />
-            {/* Goals Card */}
-            <GoalSection currentWeight={currentWeight} userId={user?.id || ''}/>
-            <div>
-          {/* Rest of your content */}
-        </div>
-          </div>
-          {/* Weekly Activity and Recent Workouts */}
-          <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
-            {/* Weekly Activity Chart */}
-            <WeeklyActivity workoutStats={workoutStats} />
-            {/* Recent Workouts */}
-            <RecentWorkouts workoutLogs={workoutLogs} setActiveTab={setActiveTab} />
-          </div>
-
-          {/* Membership Details */}
-          {activeMembership && (
-            <ActiveMembershipCard
-              activeMembership={activeMembership}
+          <div className="space-y-5 sm:space-y-6">
+            {/* Quick Stats Grid */}
+            <StatsOverview
               getDaysRemaining={getDaysRemaining}
+              activeMembership={activeMembership}
+              weeklyWorkouts={weeklyWorkouts}
+              weightChange={weightChange}
+              totalCalories={totalCalories}
             />
-          )}
 
-          {/* Quick Actions */}
-          <QuickLink setActiveTab={setActiveTab} />
-        </div>
+            {/* Main Content Grid */}
+            <div className="grid lg:grid-cols-3 gap-5 sm:gap-6">
+              {/* Progress Chart */}
+              <WeightProgress
+                filteredWeightData={filteredWeightData}
+                selectedPeriod={selectedPeriod}
+                setSelectedPeriod={setSelectedPeriod}
+                setActiveTab={setActiveTab}
+              />
+              {/* Goals Card */}
+              <GoalSection measurements={measurements} userId={user?.id || ''}/>
+              <div>
+                {/* Rest of your content */}
+              </div>
+            </div>
+
+            {/* Weekly Activity and Recent Workouts */}
+            <div className="grid lg:grid-cols-2 gap-5 sm:gap-6">
+              {/* Weekly Activity Chart */}
+              <WeeklyActivity workoutStats={workoutStats} />
+              {/* Recent Workouts */}
+              <RecentWorkouts workoutLogs={workoutLogs} setActiveTab={setActiveTab} />
+            </div>
+
+            {/* Membership Details */}
+            {activeMembership && (
+              <ActiveMembershipCard
+                activeMembership={activeMembership}
+                getDaysRemaining={getDaysRemaining}
+              />
+            )}
+
+            {/* Quick Actions */}
+            <QuickLink setActiveTab={setActiveTab} />
+          </div>
         )}
 
         {/* Measurements Tab */}
@@ -503,6 +467,10 @@ const MemberDashboard = () => {
             measurements={measurements}
             setActiveTab={setActiveTab}
             setShowMeasurementModal={setShowMeasurementModal}
+            setIsUpdateMeasurement={setIsUpdateMeasurement}
+            setNewMeasurement={setNewMeasurement}
+            setRecordId={setRecordId}
+            userId={user?.id || ''}
           />
         )}
 
@@ -526,7 +494,7 @@ const MemberDashboard = () => {
             totalWorkouts={workoutLogs.length}
             currentStreak={currentStreak}
             weeklyWorkouts={5}
-            CustomTooltip={() => <div>Tooltip</div>}
+            CustomTooltip={CustomTooltip}
           />
         )}
       </div>
@@ -535,56 +503,61 @@ const MemberDashboard = () => {
       {/* Add Measurement Modal */}
       {showMeasurementModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-red-500/30 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-white">Add Measurement</h3>
-              <button onClick={() => setShowMeasurementModal(false)} className="text-gray-400 hover:text-white">
+          <div className="bg-gray-900 border border-red-500/30 rounded-xl p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h3 className="text-xl sm:text-2xl font-bold text-white">Add Measurement</h3>
+              <button 
+                onClick={() => {
+                  setShowMeasurementModal(false);
+                }} 
+                className="text-gray-400 hover:text-white transition-colors p-1"
+              >
                 <X size={24} />
               </button>
             </div>
 
             <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          { label: "Weight (kg) *", key: "weight", placeholder: "72.5" },
-          { label: "Chest (cm)", key: "chest", placeholder: "99" },
-          { label: "Waist (cm)", key: "waist", placeholder: "78" },
-          { label: "Hips (cm)", key: "hips", placeholder: "92" },
-          { label: "Arms (cm)", key: "arms", placeholder: "37" },
-          { label: "Thighs (cm)", key: "thighs", placeholder: "56" },
-        ].map((field) => (
-          <div key={field.key}>
-            <label className="text-white block mb-2 text-sm">{field.label}</label>
-            <input
-              type="number"
-              step="0.1"
-              value={newMeasurement[field.key]}
-              onChange={(e) =>
-                setNewMeasurement({ ...newMeasurement, [field.key]: e.target.value })
-              }
-              className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-4 py-2 focus:border-red-500 focus:outline-none"
-              placeholder={field.placeholder}
-            />
-          </div>
-        ))}
-      </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {[
+                  { label: "Weight (kg) *", key: "weight", placeholder: "72.5" },
+                  { label: "Chest (cm)", key: "chest", placeholder: "99" },
+                  { label: "Waist (cm)", key: "waist", placeholder: "78" },
+                  { label: "Hips (cm)", key: "hips", placeholder: "92" },
+                  { label: "Arms (cm)", key: "arms", placeholder: "37" },
+                  { label: "Thighs (cm)", key: "thighs", placeholder: "56" },
+                ].map((field) => (
+                  <div key={field.key} className="w-full">
+                    <label className="text-white block mb-2 text-sm font-medium">{field.label}</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={newMeasurement[field.key]}
+                      onChange={(e) =>
+                        setNewMeasurement({ ...newMeasurement, [field.key]: e.target.value })
+                      }
+                      className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 focus:border-red-500 focus:outline-none text-sm transition-colors"
+                      placeholder={field.placeholder}
+                    />
+                  </div>
+                ))}
+              </div>
 
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={() => setShowMeasurementModal(false)}
-          className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={addMeasurement}
-          className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition-colors flex items-center justify-center"
-        >
-          <Save size={16} className="mr-2" />
-          {isUpdateMeasurement ? "Update" : "Save"}
-        </button>
-      </div>
-    </div>
+              <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-2">
+                <button
+                  onClick={() => setShowMeasurementModal(false)}
+                  className="w-full sm:flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2.5 sm:py-2 rounded-lg transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addMeasurement}
+                  className="w-full sm:flex-1 bg-red-500 hover:bg-red-600 text-white py-2.5 sm:py-2 rounded-lg transition-colors flex items-center justify-center text-sm font-medium"
+                >
+                  <Save size={16} className="mr-2" />
+                  {isUpdateMeasurement ? "Update" : "Save"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -592,45 +565,50 @@ const MemberDashboard = () => {
       {/* Add Workout Modal */}
       {showWorkoutModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-purple-500/30 rounded-xl p-6 max-w-md w-full">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-white">Log Workout</h3>
-              <button onClick={() => setShowWorkoutModal(false)} className="text-gray-400 hover:text-white">
+          <div className="bg-gray-900 border border-purple-500/30 rounded-xl p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h3 className="text-xl sm:text-2xl font-bold text-white">Log Workout</h3>
+              <button 
+                onClick={() => setShowWorkoutModal(false)} 
+                className="text-gray-400 hover:text-white transition-colors p-1"
+              >
                 <X size={24} />
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 sm:space-y-4">
               {/* Date */}
-              <div>
-                <label className="text-white block mb-1 text-sm">Date</label>
+              <div className="w-full">
+                <label className="text-white block mb-2 text-sm font-medium">Date</label>
                 <input
                   type="date"
                   value={newWorkout.date}
                   onChange={(e) => setNewWorkout({ ...newWorkout, date: e.target.value })}
-                  className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                  className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:border-purple-500 focus:outline-none transition-colors"
                 />
               </div>
 
               {/* Workout Type */}
-              <div>
-                <label className="text-white block mb-1 text-sm">Workout Type *</label>
-                    <Listbox value={newWorkout.type} onChange={(value) => setNewWorkout({ ...newWorkout, type: value })}>
+              <div className="w-full">
+                <label className="text-white block mb-2 text-sm font-medium">Workout Type *</label>
+                <Listbox value={newWorkout.type} onChange={(value) => setNewWorkout({ ...newWorkout, type: value })}>
                   <div className="relative">
-                    {/* Button that shows the currently selected workout type */}
-                    <Listbox.Button className="w-full bg-black/50 border border-gray-800 text-white rounded-lg px-3 py-2 text-sm flex justify-between items-center">
-                      {newWorkout.type || 'Select workout type'}
-                      <ChevronDown className="text-gray-400" size={16} />
+                    <Listbox.Button className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm flex justify-between items-center hover:border-purple-500/50 transition-colors">
+                      <span className={newWorkout.type ? 'text-white' : 'text-gray-400'}>
+                        {newWorkout.type || 'Select workout type'}
+                      </span>
+                      <ChevronDown className="text-gray-400 flex-shrink-0 ml-2" size={16} />
                     </Listbox.Button>
 
-                    {/* Options list */}
-                    <Listbox.Options className="absolute mt-1 w-full bg-black/100 border border-gray-700 rounded-lg z-10 max-h-60 overflow-auto text-white">
+                    <Listbox.Options className="absolute mt-1 w-full bg-gray-900 border border-gray-700 rounded-lg z-10 max-h-60 overflow-auto text-white shadow-xl">
                       {workoutOptions.map((option) => (
                         <Listbox.Option
                           key={option}
-                          value={option} // this sets newWorkout.type when selected
+                          value={option}
                           className={({ active }) =>
-                            `cursor-pointer px-3 py-2 ${active ? 'bg-purple-500/30' : ''}`
+                            `cursor-pointer px-3 sm:px-4 py-2 text-sm transition-colors ${
+                              active ? 'bg-purple-500/30 text-white' : 'text-gray-300 hover:bg-purple-500/20'
+                            }`
                           }
                         >
                           {option}
@@ -642,50 +620,50 @@ const MemberDashboard = () => {
               </div>
 
               {/* Numeric Inputs */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-white block mb-1 text-sm">Duration (min) *</label>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="w-full">
+                  <label className="text-white block mb-2 text-xs sm:text-sm font-medium">Duration (min) *</label>
                   <input
                     type="number"
                     value={newWorkout.duration}
                     onChange={(e) => setNewWorkout({ ...newWorkout, duration: e.target.value })}
-                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-2 sm:px-3 py-2 sm:py-2.5 text-sm focus:border-purple-500 focus:outline-none transition-colors"
                     placeholder="45"
                   />
                 </div>
-                <div>
-                  <label className="text-white block mb-1 text-sm">Exercises</label>
+                <div className="w-full">
+                  <label className="text-white block mb-2 text-xs sm:text-sm font-medium">Exercises</label>
                   <input
                     type="number"
                     value={newWorkout.exercises}
                     onChange={(e) => setNewWorkout({ ...newWorkout, exercises: e.target.value })}
-                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-2 sm:px-3 py-2 sm:py-2.5 text-sm focus:border-purple-500 focus:outline-none transition-colors"
                     placeholder="8"
                   />
                 </div>
-                <div>
-                  <label className="text-white block mb-1 text-sm">Calories</label>
+                <div className="w-full">
+                  <label className="text-white block mb-2 text-xs sm:text-sm font-medium">Calories</label>
                   <input
                     type="number"
                     value={newWorkout.calories}
                     onChange={(e) => setNewWorkout({ ...newWorkout, calories: e.target.value })}
-                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-2 sm:px-3 py-2 sm:py-2.5 text-sm focus:border-purple-500 focus:outline-none transition-colors"
                     placeholder="320"
                   />
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 mt-4">
+              <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-2">
                 <button
                   onClick={() => setShowWorkoutModal(false)}
-                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg transition-colors text-sm"
+                  className="w-full sm:flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2.5 sm:py-2 rounded-lg transition-colors text-sm font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={addWorkout}
-                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg transition-colors flex items-center justify-center text-sm"
+                  className="w-full sm:flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2.5 sm:py-2 rounded-lg transition-colors flex items-center justify-center text-sm font-medium"
                 >
                   <Save size={16} className="mr-2" />
                   Save

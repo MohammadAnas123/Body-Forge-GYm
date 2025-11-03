@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from "../lib/supabaseClient";
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 
 
 interface AuthDialogProps {
@@ -51,6 +51,42 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
     setTimer(0);
   };
 
+  // Enhanced mobile dialog visibility fix
+  useEffect(() => {
+    if (!open) return;
+
+    // On desktop we lock the body using position:fixed to avoid background scroll
+    // On mobile devices (where the on-screen keyboard resizes the viewport) using
+    // position:fixed causes the modal to get hidden behind the keyboard. For mobile
+    // only disable body scrolling via overflow so the modal can still resize and be scrolled.
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+
+    if (!isMobile) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        const scrollYStr = document.body.style.top;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        window.scrollTo(0, parseInt(scrollYStr || '0') * -1);
+      };
+    } else {
+      // mobile: avoid position:fixed, just hide overflow so viewport can resize with keyboard
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow || '';
+      };
+    }
+  }, [open]);
+
   // Check if all signup fields are filled
   const isSignupFormComplete = !isLogin && name && email && password && phone && gender;
 
@@ -82,6 +118,24 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
       const data = await response.json();
     } catch (err) {
       console.error("Error sending OTP:", err);
+    }
+  };
+
+  // Safe signOut that treats missing/expired remote sessions as non-fatal
+  const safeSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        const msg = (error?.message || '').toString();
+        if (msg.toLowerCase().includes('auth session') || msg.toLowerCase().includes('no active session') || msg.toLowerCase().includes('session missing')) {
+          console.warn('safeSignOut: remote session missing - treating as signed out', msg);
+          return;
+        }
+        throw error;
+      }
+    } catch (err) {
+      // Don't block UI flow on signOut errors here; log for debugging
+      console.error('safeSignOut error:', err);
     }
   };
 
@@ -175,21 +229,21 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
 
           if (userError){
-            await supabase.auth.signOut();
+            await safeSignOut();
             throw new Error('Your account doesn\'t exists in database.');
           }
 
           // Check if user is approved\
-          if(userData){
+            if(userData){
             if(userData.is_blacklisted){
-              await supabase.auth.signOut();
+              await safeSignOut();
               throw new Error('Your account has been deactivated. Please contact admin for more information.');
             }else if (!userData.admin_approved) {
-              await supabase.auth.signOut();
+              await safeSignOut();
               throw new Error('Your account is pending admin approval. Please wait for approval before logging in.');
             }
           }else{
-            await supabase.auth.signOut();
+            await safeSignOut();
             throw new Error('Your account doesn\'t exists in database.');
           }
         }
@@ -233,8 +287,8 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
         if (!signUpData.user?.id) throw new Error('Failed to create user account');
 
-        // Immediately sign out after signup
-        await supabase.auth.signOut();
+  // Immediately sign out after signup
+  await safeSignOut();
 
         const { error: userInsertError } = await supabase.from('user_master').insert([
           {
@@ -298,7 +352,16 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
       }}
     >
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[400px]">
+  <DialogContent className="sm:max-w-[400px] rounded-2xl max-h-[calc(100vh-32px)] overflow-y-auto">
+        {/* Close Button */}
+        <button
+          onClick={() => setOpen(false)}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </button>
+
         <DialogHeader>
           <DialogTitle>
             {isAdmin ? 'Admin ' : ''}

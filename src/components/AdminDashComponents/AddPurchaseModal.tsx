@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Package, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Package, Trash2, AlertTriangle, X } from 'lucide-react';
 
 interface PackageType {
   package_id: string;
@@ -42,6 +42,12 @@ const AddPurchaseModal = ({ userId, userName, onPurchaseAdded }: AddPurchaseProp
     }
   }, [open]);
 
+  const formatDate = (dateStr) => 
+  new Date(dateStr).toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
   const fetchPackages = async () => {
     const { data, error } = await supabase
       .from('packages')
@@ -173,9 +179,18 @@ const AddPurchaseModal = ({ userId, userName, onPurchaseAdded }: AddPurchaseProp
         </DialogTrigger>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <Package className="mr-2" size={20} />
-              Manage Packages for {userName}
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Package className="mr-2" size={20} />
+                Manage Packages for {userName}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setOpen(false)}
+              >
+                <X size={20} />
+              </Button>
             </DialogTitle>
           </DialogHeader>
 
@@ -287,7 +302,7 @@ const AddPurchaseModal = ({ userId, userName, onPurchaseAdded }: AddPurchaseProp
                               )}
                             </div>
                             <p className="text-sm text-gray-600 mt-1">
-                              {new Date(purchase.start_date).toLocaleDateString()} - {new Date(purchase.end_date).toLocaleDateString()}
+                              {formatDate(purchase.start_date)} - {formatDate(purchase.end_date)}
                             </p>
                             <div className="flex gap-4 mt-2 text-sm">
                               <span className="text-gray-700">
@@ -326,9 +341,21 @@ const AddPurchaseModal = ({ userId, userName, onPurchaseAdded }: AddPurchaseProp
       <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center text-red-600">
-              <AlertTriangle className="mr-2" size={24} />
-              Delete Purchase
+            <DialogTitle className="flex items-center justify-between text-red-600">
+              <div className="flex items-center">
+                <AlertTriangle className="mr-2" size={24} />
+                Delete Purchase
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDeleteDialog(false);
+                  setPurchaseToDelete(null);
+                }}
+              >
+                <X size={20} />
+              </Button>
             </DialogTitle>
           </DialogHeader>
 

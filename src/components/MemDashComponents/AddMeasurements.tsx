@@ -1,5 +1,5 @@
 import React from "react";
-
+import { supabase } from '@/lib/supabaseClient';
 import { ArrowLeft, Plus, TrendingUp, Ruler } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -16,6 +16,10 @@ const AddMeasurements = ({
   measurements,
   setActiveTab,
   setShowMeasurementModal,
+  setRecordId,
+  setIsUpdateMeasurement,
+  setNewMeasurement,
+  userId 
 }) => {
   // Prepare last 10 measurements for chart
   const chartData = measurements?.slice(-10).map((m) => ({
@@ -30,6 +34,47 @@ const AddMeasurements = ({
 
   const latestMeasurements = measurements?.slice(-5).reverse() || [];
 
+  const fetchTodayMeasurement = async () => {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+      const { data, error } = await supabase
+        .from("user_measurements")
+        .select("weight, chest, waist, hips, arms, thighs, created_at, measurement_id")
+        .eq("user_id", userId)
+        .gte("created_at", startOfDay.toISOString())
+        .lte("created_at", endOfDay.toISOString())
+        .single();
+      console.log("Data:::"+data);
+      if (error && error.code !== "PGRST116") console.error("Fetch error:", error);
+      if (data) {
+        setNewMeasurement({
+          weight: data.weight || '',
+          chest: data.chest || '',
+          waist: data.waist || '',
+          hips: data.hips || '',
+          arms: data.arms || '',
+          thighs: data.thighs || '',
+        });
+        setRecordId(data.measurement_id);
+        setIsUpdateMeasurement(true);
+      }else{
+        setNewMeasurement({
+                    date: new Date().toISOString().split('T')[0],
+                    weight: '',
+                    chest: '',
+                    waist: '',
+                    hips: '',
+                    arms: '',
+                    thighs: ''
+                  });
+        setIsUpdateMeasurement(false);
+        setRecordId(null); 
+      }
+      setShowMeasurementModal(true);
+    };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -42,7 +87,7 @@ const AddMeasurements = ({
         </button>
 
         <button
-            onClick={() => setShowMeasurementModal(true)}
+            onClick={() => fetchTodayMeasurement()}
             className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg flex items-center transition-colors text-xs shadow-lg whitespace-nowrap"
             >
             <Plus size={15} className="mr-1" />

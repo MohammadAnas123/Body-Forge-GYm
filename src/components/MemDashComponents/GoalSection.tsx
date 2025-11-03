@@ -16,13 +16,25 @@ interface Goal {
   created_at?: string;
 }
 
+interface Measurement {
+  id: number;
+  user_id: string;
+  weight?: number;
+  chest?: number;
+  hip?: number;
+  thigh?: number;
+  bicep?: number;
+  waist?: number;
+  created_at: string;
+}
+
 interface GoalSectionProps {
-  currentWeight: number;
+  measurements: Measurement[];
   userId: string;
 }
 
 export const GoalSection: React.FC<GoalSectionProps> = ({ 
-  currentWeight, 
+  measurements, 
   userId 
 }) => {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -39,9 +51,14 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
   const goalTypes = [
     { value: 'Weight Loss', icon: TrendingDown, unit: 'kg' },
     { value: 'Weight Gain', icon: TrendingUp, unit: 'kg' },
-    { value: 'Body Fat Loss', icon: TrendingDown, unit: '%' },
-    { value: 'Muscle Gain', icon: TrendingUp, unit: 'kg' },
   ];
+
+  // Get current weight from latest measurement
+  const getCurrentWeight = (): number => {
+    if (measurements.length === 0) return 0;
+    const latestMeasurement = measurements[measurements.length - 1];
+    return latestMeasurement.weight || 0;
+  };
 
   // Fetch goals from database
   useEffect(() => {
@@ -53,15 +70,17 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
   const fetchGoals = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      const { data: goalsData, error: goalsError } = await supabase
         .from('goals')
         .select('*')
         .eq('user_id', userId)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setGoals(data || []);
+      if (goalsError) throw goalsError;
+      
+      setGoals(goalsData || []);
     } catch (error: any) {
       console.error('Error fetching goals:', error);
       toast({
@@ -74,17 +93,56 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
     }
   };
 
-  const calculateProgress = (initialValue: number, targetValue: number, type: string) => {
-    if (type === 'Weight Loss' || type === 'Body Fat Loss') {
+  // Get the most recent measurement value for a goal
+  const getCurrentValueForGoal = (goal: Goal): number => {
+    if (!goal.created_at) return goal.current_value;
+    
+    // Filter measurements that were created after the goal
+    const measurementsAfterGoal = measurements.filter(
+      m => new Date(m.created_at) > new Date(goal.created_at!)
+    );
+    
+    // If no measurements after goal creation, use the initial value
+    if (measurementsAfterGoal.length === 0) {
+      return goal.current_value;
+    }
+    
+    // Get the most recent measurement
+    const mostRecentMeasurement = measurementsAfterGoal[measurementsAfterGoal.length - 1];
+    
+    // Return the appropriate measurement based on goal type
+    if (goal.goal_type.includes('Weight')) {
+      return mostRecentMeasurement.weight || goal.current_value;
+    } else if (goal.goal_type.includes('Chest')) {
+      return mostRecentMeasurement.chest || goal.current_value;
+    } else if (goal.goal_type.includes('Hip')) {
+      return mostRecentMeasurement.hip || goal.current_value;
+    } else if (goal.goal_type.includes('Thigh')) {
+      return mostRecentMeasurement.thigh || goal.current_value;
+    } else if (goal.goal_type.includes('Bicep')) {
+      return mostRecentMeasurement.bicep || goal.current_value;
+    } else if (goal.goal_type.includes('Waist')) {
+      return mostRecentMeasurement.waist || goal.current_value;
+    }
+    
+    return goal.current_value;
+  };
+
+  const calculateProgress = (goal: Goal) => {
+    const currentValue = getCurrentValueForGoal(goal);
+    const initialValue = goal.current_value;
+    const targetValue = goal.target_value;
+    
+    if (goal.goal_type === 'Weight Loss' || goal.goal_type === 'Body Fat Loss') {
       const totalToLose = initialValue - targetValue;
       if (totalToLose <= 0) return 100; // Already at or below target
-      const lost = initialValue - currentWeight;
+      const lost = initialValue - currentValue;
       const progress = (lost / totalToLose) * 100;
       return Math.max(0, Math.min(progress, 100));
     } else {
       const totalToGain = targetValue - initialValue;
       if (totalToGain <= 0) return 100; // Already at or above target
-      const gained = currentWeight - initialValue;
+      const gained = currentValue - initialValue;
       const progress = (gained / totalToGain) * 100;
       return Math.max(0, Math.min(progress, 100));
     }
@@ -92,6 +150,7 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
 
   const validateGoal = () => {
     const newErrors: any = {};
+    const currentWeight = getCurrentWeight();
 
     if (!newGoal.type) {
       newErrors.type = 'Please select a goal type';
@@ -104,12 +163,12 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
       if (isNaN(targetNum) || targetNum <= 0) {
         newErrors.target = 'Target must be a positive number';
       } else {
-        if (newGoal.type === 'Weight Loss' && targetNum >= currentWeight) {
-          newErrors.target = `Target must be less than current weight (${currentWeight} kg)`;
-        } else if (newGoal.type === 'Weight Gain' && targetNum <= currentWeight) {
-          newErrors.target = `Target must be greater than current weight (${currentWeight} kg)`;
-        } else if (newGoal.type === 'Body Fat Loss' && (targetNum >= 100 || targetNum < 5)) {
-          newErrors.target = 'Body fat % must be between 5% and 100%';
+        if (currentWeight > 0) {
+          if (newGoal.type === 'Weight Loss' && targetNum >= currentWeight) {
+            newErrors.target = `Target must be less than current weight (${currentWeight} kg)`;
+          } else if (newGoal.type === 'Weight Gain' && targetNum <= currentWeight) {
+            newErrors.target = `Target must be greater than current weight (${currentWeight} kg)`;
+          }
         }
       }
     }
@@ -122,10 +181,16 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
     if (validateGoal()) {
       try {
         const selectedGoalType = goalTypes.find(g => g.value === newGoal.type);
+        const currentWeight = getCurrentWeight();
+        
+        if(newGoal.current === ''){
+          newGoal.current = `${currentWeight}`;
+        }
+        
         const newGoalData = {
           user_id: userId,
           goal_type: newGoal.type,
-          current_value: newGoal.type.includes('Fat') ? 20 : newGoal.current,
+          current_value: parseFloat(newGoal.current),
           target_value: parseFloat(newGoal.target),
           unit: selectedGoalType?.unit || 'kg',
           status: 'active',
@@ -141,7 +206,7 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
         if (error) throw error;
 
         setGoals([data, ...goals]);
-        setNewGoal({ type: '',current:'', target: '' });
+        setNewGoal({ type: '', current:'', target: '' });
         setShowGoalModal(false);
         setErrors({});
 
@@ -187,13 +252,14 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
   };
 
   const getRemainingValue = (goal: Goal) => {
-    const initialValue = goal.current_value;
-    if (goal.goal_type === 'Weight Loss' || goal.goal_type === 'Body Fat Loss') {
+    const currentValue = getCurrentValueForGoal(goal);
+    
+    if (goal.goal_type === 'Weight Loss') {
       // For weight loss: show how much more needs to be lost
-      return Math.max(0, currentWeight - goal.target_value);
+      return Math.max(0, currentValue - goal.target_value);
     } else {
       // For weight gain: show how much more needs to be gained
-      return Math.max(0, goal.target_value - currentWeight);
+      return Math.max(0, goal.target_value - currentValue);
     }
   };
 
@@ -262,8 +328,9 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
 
             {goals && goals.length > 0 ? (
                 goals.map((goal) => {
-                const progress = calculateProgress(goal.current_value, goal.target_value, goal.goal_type);
+                const progress = calculateProgress(goal);
                 const remaining = getRemainingValue(goal);
+                const currentValue = getCurrentValueForGoal(goal);
                 const daysSinceCreated = goal.created_at ? getDaysSinceGoalCreated(goal.created_at) : 0;
                 const GoalIcon = goalTypes.find(g => g.value === goal.goal_type)?.icon || Target;
 
@@ -285,11 +352,11 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-gray-400 text-[10px] sm:text-xs whitespace-nowrap">
-                          {currentWeight}/{goal.target_value} {goal.unit}
+                          {currentValue.toFixed(1)}/{goal.target_value} {goal.unit}
                         </span>
                         <button
                           onClick={() => handleDeleteGoal(goal.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded"
+                          className="opacity-50 hover:opacity-100 transition-opacity p-1 text-red-400 hover:text-red-400 hover:bg-red-800/10 rounded"
                           title="Delete goal"
                         >
                           <Trash2 size={14} />
@@ -347,7 +414,7 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
               <button
                 onClick={() => {
                   setShowGoalModal(false);
-                  setNewGoal({ type: '', target: '' });
+                  setNewGoal({ type: '', current:'', target: '' });
                   setErrors({});
                 }}
                 className="text-gray-400 hover:text-white transition-colors"
@@ -386,39 +453,39 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
 
               {/* Current Value (Auto-filled) */}
               {newGoal.type && (
-  <div>
-    <label className="block text-sm font-medium text-gray-300 mb-2">
-      Current Value
-    </label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Current Value
+                  </label>
 
-    <input
-      type="text"
-      value={
-        currentWeight
-          ? (newGoal.type.includes('Fat') ? '20%' : `${currentWeight} kg`)
-          : newGoal.current || ''
-      }
-      onChange={(e) => {
-        if (!currentWeight) {
-          setNewGoal({ ...newGoal, current: e.target.value });
-        }
-      }}
-      disabled={!!currentWeight}
-      className={`w-full px-4 py-3 bg-gray-800/50 border rounded-lg text-sm ${
-        currentWeight
-          ? 'border-gray-700 text-gray-400 cursor-not-allowed'
-          : 'border-gray-600 text-gray-200'
-      }`}
-      placeholder="Enter your current value"
-    />
+                  <input
+                    type="text"
+                    value={
+                      getCurrentWeight() > 0
+                        ? (newGoal.type.includes('Fat') ? '20%' : `${getCurrentWeight()} kg`)
+                        : newGoal.current || ''
+                    }
+                    onChange={(e) => {
+                      if (getCurrentWeight() === 0) {
+                        setNewGoal({ ...newGoal, current: e.target.value });
+                      }
+                    }}
+                    disabled={getCurrentWeight() > 0}
+                    className={`w-full px-4 py-3 bg-gray-800/50 border rounded-lg text-sm ${
+                      getCurrentWeight() > 0
+                        ? 'border-gray-700 text-gray-400 cursor-not-allowed'
+                        : 'border-gray-600 text-gray-200'
+                    }`}
+                    placeholder="Enter your current value"
+                  />
 
-    <p className="mt-1 text-xs text-gray-500">
-      {currentWeight
-        ? 'Automatically filled from your latest weight entry'
-        : 'Enter manually if no latest record found'}
-    </p>
-  </div>
-)}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {getCurrentWeight() > 0
+                      ? 'Automatically filled from your latest weight entry'
+                      : 'Enter manually if no latest record found'}
+                  </p>
+                </div>
+              )}
 
 
               {/* Target Value */}
@@ -462,7 +529,7 @@ export const GoalSection: React.FC<GoalSectionProps> = ({
                 <button
                   onClick={() => {
                     setShowGoalModal(false);
-                    setNewGoal({ type: '', target: '' });
+                    setNewGoal({ type: '', current:'', target: '' });
                     setErrors({});
                   }}
                   className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
