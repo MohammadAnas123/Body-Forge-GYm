@@ -22,24 +22,35 @@ export const useAuth = () => {
   const isFetchingRef = useRef(false); // Prevent concurrent fetches
 
   useEffect(() => {
+    console.log('[useAuth] useEffect mounting...');
+    
     const getInitialSession = async () => {
+      console.log('[useAuth] getInitialSession START');
       try {
+        console.log('[useAuth] Calling supabase.auth.getSession()...');
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[useAuth] getSession() returned, session exists:', !!session);
+        
         if (session?.user) {
+          console.log('[useAuth] Setting user and fetching user data...');
           setUser(session.user);
           await fetchUserData(session.user.id, session.user.email || '');
+          console.log('[useAuth] fetchUserData completed');
         } else {
+          console.log('[useAuth] No session found, clearing user data');
           setUser(null);
           setUserData(null);
         }
       } catch (error) {
-        console.error('Error getting session:', error);
+        console.error('[useAuth] Error getting session:', error);
       } finally {
+        console.log('[useAuth] getInitialSession FINALLY block');
         if (loadingTimeoutRef.current) {
           clearTimeout(loadingTimeoutRef.current as any);
           loadingTimeoutRef.current = null;
         }
         setLoading(false);
+        console.log('[useAuth] Loading set to false');
       }
     };
 
@@ -101,7 +112,9 @@ export const useAuth = () => {
     );
 
     if (!loadingTimeoutRef.current) {
+      console.log('[useAuth] Setting 10-second loading timeout');
       loadingTimeoutRef.current = window.setTimeout(() => {
+        console.warn('[useAuth] 10-second loading timeout hit! Force setting loading to false');
         setLoading(false);
         loadingTimeoutRef.current = null;
       }, 10000);
@@ -133,7 +146,7 @@ export const useAuth = () => {
     console.log('[useAuth] Starting fetchUserData for:', userId);
 
     // Helper to time each query
-    const withTiming = async <T,>(label: string, fn: () => Promise<T>, ms: number = 100000) => {
+    const withTiming = async <T,>(label: string, fn: () => Promise<T>, ms: number = 15000) => {
       const start = performance.now();
       let timeoutId: number | null = null;
       try {
@@ -150,30 +163,37 @@ export const useAuth = () => {
     };
 
     try {
-      // Time admin_master by id
-      let adminRes;
-      try {
-        adminRes = await withTiming('admin_master by id', () => supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').eq('admin_id', userId).maybeSingle());
-      } catch (err) {
-        console.error('admin_master by id failed:', err);
-        throw err;
-      }
+      // Query both tables in PARALLEL for better performance
+      // Only query by ID for speed (email lookups are slow without proper indexes)
+      const [adminRes, memberRes] = await Promise.all([
+        withTiming('admin_master by id', () => 
+          supabase.from('admin_master')
+            .select('admin_name, admin_email, status, admin_id')
+            .eq('admin_id', userId)
+            .maybeSingle()
+        ).catch(err => {
+          console.error('admin_master by id failed:', err);
+          return { data: null, error: err };
+        }),
+        withTiming('user_master by id', () => 
+          supabase.from('user_master')
+            .select('user_name, email, user_id, status, admin_approved')
+            .eq('user_id', userId)
+            .maybeSingle()
+        ).catch(err => {
+          console.error('user_master by id failed:', err);
+          return { data: null, error: err };
+        })
+      ]);
+
+      console.log('[useAuth] Parallel queries completed');
 
       let adminData = (adminRes as any)?.data;
-      let adminError = (adminRes as any)?.error;
+      let memberData = (memberRes as any)?.data;
 
-      // If not found by ID, try by email
-      if (!adminData && !adminError) {
-        try {
-          const result = await withTiming('admin_master by email', () => supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').ilike('admin_email', email.trim().toLowerCase()).maybeSingle());
-          adminData = (result as any)?.data;
-          adminError = (result as any)?.error;
-        } catch (err) {
-          console.error('admin_master by email failed:', err);
-        }
-      }
-
-      if (!adminError && adminData) {
+      // If admin found, use admin data
+      if (adminData) {
+        console.log('[useAuth] Admin user found');
         const newUserData = {
           id: userId,
           name: adminData.admin_name || 'Admin',
@@ -185,39 +205,18 @@ export const useAuth = () => {
         return;
       }
 
-      // Time user_master by id
-      let memberRes;
-      try {
-        memberRes = await withTiming('user_master by id', () => supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').eq('user_id', userId).maybeSingle());
-      } catch (err) {
-        console.error('user_master by id failed:', err);
-        throw err;
-      }
-
-      let memberData = (memberRes as any)?.data;
-      let memberError = (memberRes as any)?.error;
-
-      // If not found by ID, try by email
-      if (!memberData && !memberError) {
-        try {
-          const result = await withTiming('user_master by email', () => supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').ilike('email', email.trim().toLowerCase()).maybeSingle());
-          memberData = (result as any)?.data;
-          memberError = (result as any)?.error;
-        } catch (err) {
-          console.error('user_master by email failed:', err);
-        }
-      }
-
-      if (!memberError && memberData) {
+      // If member found, check approval and use member data
+      if (memberData) {
+        console.log('[useAuth] Member user found');
         // Check if user is not approved
         if (!memberData.admin_approved) {
           try {
             const { error } = await supabase.auth.signOut();
             if (error) {
               const msg = (error?.message || '').toString();
-              if (msg.toLowerCase().includes('auth session') || msg.toLowerCase().includes('no active session') || msg.toLowerCase().includes('session missing')) {
-                // ignore
-              } else {
+              if (!msg.toLowerCase().includes('auth session') && 
+                  !msg.toLowerCase().includes('no active session') && 
+                  !msg.toLowerCase().includes('session missing')) {
                 throw error;
               }
             }
@@ -248,7 +247,8 @@ export const useAuth = () => {
         return;
       }
 
-      // If neither admin nor user found
+      // If neither found, create default user data
+      console.log('[useAuth] User not found in database, using defaults');
       const newUserData = {
         id: userId,
         name: email.split('@')[0],
