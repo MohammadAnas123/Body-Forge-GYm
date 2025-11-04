@@ -22,8 +22,8 @@ const Header = () => {
     { name: 'Gallery', href: '#gallery' },
     { name: 'Contact', href: '#contact' },
   ];
-
   if (loading) {
+    console.log("isAdmin", isAdmin);
     return (
       <header className="fixed top-0 left-0 w-full z-50 bg-gradient-to-r from-black via-gray-900 to-black border-b border-red-500/30 shadow-lg shadow-red-500/10">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">

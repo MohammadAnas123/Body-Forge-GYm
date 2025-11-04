@@ -14,13 +14,13 @@ const Header = ({ currentStreak, userName, handleLogout }) => {
           {/* Left Section */}
           <div className="flex items-center space-x-3 sm:space-x-4">
             {/* Back arrow with better hover effect */}
-            <a
-              href="/"
+            <button
+              onClick={() => window.history.back()}
               className="text-gray-300 hover:text-red-500 transition-all duration-300 hover:scale-110 p-1 rounded-lg hover:bg-red-500/10"
               aria-label="Go back"
             >
               <ArrowLeft size={20} className="sm:w-6 sm:h-6" />
-            </a>
+            </button>
 
             {/* Gym Name with gradient */}
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-wide flex items-center">
