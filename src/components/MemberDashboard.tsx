@@ -19,11 +19,13 @@ import { Listbox } from '@headlessui/react';
 import { ChevronDown, X, Save, Loader} from 'lucide-react';
 
 const MemberDashboard = () => {
-  const { user, userName, signOut } = useAuth();
+  // 1. Destructure 'loading' (auth loading) and 'user' from useAuth
+  const { user, userName, signOut, loading: authLoading } = useAuth(); // Renamed auth loading for clarity
   
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
-  const [loadpage, setLoading] = useState(true);
+  // 2. Use a local state for fetching dashboard data
+  const [isDataLoading, setIsDataLoading] = useState(true); // Renamed loadpage to isDataLoading
   const [error, setError] = useState(null);
   
   // State for all data
@@ -33,6 +35,7 @@ const MemberDashboard = () => {
   const [workoutLogs, setWorkoutLogs] = useState([]);
   const [goals, setGoals] = useState([]);
   
+  // ... (rest of the state declarations)
   // BMI Calculator state
   const [bmiData, setBmiData] = useState({ height: '', weight: '', bmi: null, category: '' });
   
@@ -98,17 +101,26 @@ const MemberDashboard = () => {
       });
     }
   }, [signOut, navigate, toast]);
-  // Fetch all data from Supabase
+
+  // 3. Conditional data fetch logic
   useEffect(() => {
-    if (user) {
+    // Wait until the user object is definitely available and auth is not loading
+    if (!authLoading && user) {
       fetchAllData();
+    } 
+    // If authLoading is false and user is null, it means the user is logged out.
+    // In a real app, you'd navigate here, but we'll let useAuth handle the redirect.
+    // If authLoading is false and user is null, we set isDataLoading to false to show the content.
+    if (!authLoading && !user) {
+        setIsDataLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]); // Dependency includes authLoading now
 
   const fetchAllData = async () => {
     console.log('[MemberDashboard] fetchAllData: start for user', user?.id);
 
-    setLoading(true);
+    // 4. Set local loading state to true
+    setIsDataLoading(true); 
     setError(null);
 
     // safety timeout to avoid permanent loading state
@@ -116,11 +128,16 @@ const MemberDashboard = () => {
     try {
       localTimeout = window.setTimeout(() => {
         console.warn('[MemberDashboard] fetchAllData: timeout reached');
-        setLoading(false);
+        setIsDataLoading(false);
       }, 15000);
 
       // Fetch user profile
       console.log('[MemberDashboard] fetching profile');
+      // Ensure user.id exists before making the call
+      if (!user?.id) {
+          throw new Error("User ID is missing for data fetch.");
+      }
+
       const { data: profile, error: profileError } = await supabase
         .from('user_master')
         .select('*')
@@ -153,11 +170,14 @@ const MemberDashboard = () => {
         .gte('end_date', new Date().toISOString())
         .order('end_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle(); // Changed .single() to .maybeSingle() to handle no active membership gracefully
 
       console.log('[MemberDashboard] membership result', { membershipData, membershipError });
-      if (!membershipError && membershipData) {
+      // Removed the throw for membershipError since we use maybeSingle()
+      if (membershipData) {
         setActiveMembership(membershipData);
+      } else {
+          setActiveMembership(null);
       }
 
       // Fetch workout logs
@@ -174,7 +194,7 @@ const MemberDashboard = () => {
         setWorkoutLogs(workoutsData || []);
       }
 
-      // fetchTodayMeasurement();
+      // fetchTodayMeasurement(); // kept commented as in original
     } catch (err) {
       console.error('[MemberDashboard] Error fetching data:', err);
       setError('Failed to load data. Please try again.');
@@ -183,17 +203,18 @@ const MemberDashboard = () => {
         clearTimeout(localTimeout as any);
         localTimeout = null;
       }
-      setLoading(false);
+      // 5. Set local loading state to false
+      setIsDataLoading(false); 
       console.log('[MemberDashboard] fetchAllData: finished');
     }
   };
 
-  // Calculate days remaining
+  // ... (rest of the functions like getDaysRemaining, addMeasurement, etc. remain the same)
   const getDaysRemaining = () => {
     if (!activeMembership) return 0;
     const endDate = new Date(activeMembership.end_date);
     const today = new Date();
-    return Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+    return Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
   // Add new measurement
@@ -214,30 +235,30 @@ const MemberDashboard = () => {
         created_at: new Date().toISOString(),
       };
        if (isUpdateMeasurement) {
-      const { error } = await supabase
-        .from("user_measurements")
-        .update(payload)
-        .eq("measurement_id", recordId);
-
-      if (error) {
-        console.error("Update error:", error);
-        alert("Error updating measurement.");
-      } else {
-        alert("Measurement updated successfully!");
-      }
-    } else {
-      const { data, error } = await supabase
-        .from("user_measurements")
-        .insert([payload])
-        .select();
-
-      if (error) {
-        console.error("Insert error:", error);
-        alert("Error saving measurement.");
-      } else {
-        alert("Measurement saved successfully!");
-      }
-    }
+       const { error } = await supabase
+         .from("user_measurements")
+         .update(payload)
+         .eq("measurement_id", recordId);
+ 
+       if (error) {
+         console.error("Update error:", error);
+         alert("Error updating measurement.");
+       } else {
+         alert("Measurement updated successfully!");
+       }
+     } else {
+       const { data, error } = await supabase
+         .from("user_measurements")
+         .insert([payload])
+         .select();
+ 
+       if (error) {
+         console.error("Insert error:", error);
+         alert("Error saving measurement.");
+       } else {
+         alert("Measurement saved successfully!");
+       }
+     }
       // Refresh measurements
       await fetchAllData();
       
@@ -361,20 +382,37 @@ const MemberDashboard = () => {
     const uniqueDatesSet = new Set(workoutLogs.map(w => new Date(w.date).toDateString()));
     const uniqueDates = Array.from(uniqueDatesSet)
       .map(d => new Date(d))
-      .sort((a, b) => b - a);
+      .sort((a, b) => b.getTime() - a.getTime());
 
     let streak = 0;
     let currentDate = new Date();
+    // Normalize today's date to midnight for comparison
+    currentDate.setHours(0, 0, 0, 0); 
+    let yesterday = new Date(currentDate);
+    yesterday.setDate(currentDate.getDate() - 1);
 
-    for (let date of uniqueDates) {
-      const diffDays = Math.floor((currentDate - date) / (1000 * 60 * 60 * 24));
-      if (diffDays === 0 || diffDays === 1) {
-        streak++;
-        currentDate = date;
-      } else {
-        break;
-      }
+
+    for (let i = 0; i < uniqueDates.length; i++) {
+        const date = uniqueDates[i];
+        date.setHours(0, 0, 0, 0); // Normalize logged date
+
+        if (date.getTime() === currentDate.getTime() || date.getTime() === yesterday.getTime()) {
+            streak++;
+            currentDate = date;
+            yesterday = new Date(currentDate);
+            yesterday.setDate(currentDate.getDate() - 1);
+        } else {
+            break;
+        }
     }
+
+    // Edge case: if the most recent workout was today, but we started checking from yesterday
+    // This logic ensures if there was a workout today, the streak starts from 1.
+    const todayWorkout = uniqueDates.some(d => d.toDateString() === new Date().toDateString());
+    if (streak === 0 && todayWorkout) {
+        streak = 1;
+    }
+
 
     return streak;
   };
@@ -411,8 +449,8 @@ const MemberDashboard = () => {
 
   const currentStreak = calculateStreak();
 
-  // Loading state
-  if (loadpage) {
+  // Loading state (Use EITHER auth loading OR data loading)
+  if (authLoading || isDataLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black flex items-center justify-center">
         <div className="text-center">
@@ -423,6 +461,14 @@ const MemberDashboard = () => {
     );
   }
 
+  // If authLoading is false and user is null, the user is not authenticated.
+  // The useAuth hook should ideally handle redirecting, but as a fallback:
+  if (!user) {
+    navigate('/login'); // or wherever your login page is
+    return null; // Return nothing while navigating
+  }
+
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
       {/* Header */}
@@ -432,6 +478,8 @@ const MemberDashboard = () => {
         handleLogout={handleLogout}
       />
 
+      {/* ... (rest of the component JSX is unchanged) */}
+    
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6">
         {/* Overview Tab */}
         {activeTab === 'overview' && (
@@ -606,6 +654,7 @@ const MemberDashboard = () => {
                   value={newWorkout.date}
                   onChange={(e) => setNewWorkout({ ...newWorkout, date: e.target.value })}
                   className="w-full bg-black/50 border border-gray-700 text-white rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm focus:border-purple-500 focus:outline-none transition-colors"
+                  placeholder="Select Date"
                 />
               </div>
 
