@@ -18,8 +18,8 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const userDataRef = useRef<UserData | null>(null);
-  const loadingTimeoutRef = useRef<number | null>(null);
-  const isFetchingRef = useRef(false); // Prevent concurrent fetches
+  const isFetchingRef = useRef(false);
+  const initialSessionHandledRef = useRef(false); // Prevent double initial fetch
 
   useEffect(() => {
     console.log('[useAuth] useEffect mounting...');
@@ -41,14 +41,13 @@ export const useAuth = () => {
           setUser(null);
           setUserData(null);
         }
+        
+        // Mark initial session as handled
+        initialSessionHandledRef.current = true;
       } catch (error) {
         console.error('[useAuth] Error getting session:', error);
       } finally {
         console.log('[useAuth] getInitialSession FINALLY block');
-        if (loadingTimeoutRef.current) {
-          clearTimeout(loadingTimeoutRef.current as any);
-          loadingTimeoutRef.current = null;
-        }
         setLoading(false);
         console.log('[useAuth] Loading set to false');
       }
@@ -60,71 +59,45 @@ export const useAuth = () => {
       async (event, session) => {
         console.log('[useAuth] Auth state change event:', event);
         
-        // Skip refetching for these events if we already have user data
+        // CRITICAL: Skip SIGNED_IN if we just handled initial session
+        // This prevents double-fetching on page load
+        if (event === 'SIGNED_IN' && !initialSessionHandledRef.current) {
+          console.log('[useAuth] SIGNED_IN event (not initial)');
+          if (session?.user) {
+            setUser(session.user);
+            if (!userDataRef.current || userDataRef.current.id !== session.user.id) {
+              await fetchUserData(session.user.id, session.user.email || '');
+            }
+          }
+          setLoading(false);
+          return;
+        }
+        
+        // Skip refetching for token refresh/updates if we already have data
         if (userDataRef.current && (
           event === 'TOKEN_REFRESHED' || 
           event === 'USER_UPDATED'
         )) {
           console.log('[useAuth] Skipping refetch for event:', event);
-          // Just update the user object, keep userData
           if (session?.user) {
             setUser(session.user);
           }
           return;
         }
         
-        // Handle SIGNED_IN
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('[useAuth] SIGNED_IN event');
-          setUser(session.user);
-          // Only fetch if we don't have data or it's a different user
-          if (!userDataRef.current || userDataRef.current.id !== session.user.id) {
-            console.log('[useAuth] Fetching user data for SIGNED_IN');
-            await fetchUserData(session.user.id, session.user.email || '');
-          } else {
-            console.log('[useAuth] User data already cached, skipping fetch');
-          }
-        } 
         // Handle SIGNED_OUT
-        else if (event === 'SIGNED_OUT') {
+        if (event === 'SIGNED_OUT') {
           console.log('[useAuth] SIGNED_OUT event');
           setUser(null);
           setUserData(null);
           userDataRef.current = null;
+          initialSessionHandledRef.current = false;
+          setLoading(false);
         }
-        // Handle INITIAL_SESSION - only if no data cached
-        else if (event === 'INITIAL_SESSION' && session?.user) {
-          console.log('[useAuth] INITIAL_SESSION event');
-          if (!userDataRef.current) {
-            setUser(session.user);
-            await fetchUserData(session.user.id, session.user.email || '');
-          } else {
-            console.log('[useAuth] User data already cached for INITIAL_SESSION');
-          }
-        }
-        
-        if (loadingTimeoutRef.current) {
-          clearTimeout(loadingTimeoutRef.current as any);
-          loadingTimeoutRef.current = null;
-        }
-        setLoading(false);
       }
     );
 
-    if (!loadingTimeoutRef.current) {
-      console.log('[useAuth] Setting 10-second loading timeout');
-      loadingTimeoutRef.current = window.setTimeout(() => {
-        console.warn('[useAuth] 10-second loading timeout hit! Force setting loading to false');
-        setLoading(false);
-        loadingTimeoutRef.current = null;
-      }, 10000);
-    }
-
     return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current as any);
-        loadingTimeoutRef.current = null;
-      }
       subscription.unsubscribe();
     };
   }, []);
@@ -145,51 +118,23 @@ export const useAuth = () => {
     isFetchingRef.current = true;
     console.log('[useAuth] Starting fetchUserData for:', userId);
 
-    // Helper to time each query
-    const withTiming = async <T,>(label: string, fn: () => Promise<T>, ms: number = 15000) => {
-      const start = performance.now();
-      let timeoutId: number | null = null;
-      try {
-        timeoutId = window.setTimeout(() => {
-          console.warn(`[useAuth] Query '${label}' timed out after ${ms}ms`);
-        }, ms);
-        const result = await fn();
-        const duration = performance.now() - start;
-        console.log(`[useAuth] Query '${label}' completed in ${duration.toFixed(1)}ms`);
-        return result;
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId as any);
-      }
-    };
-
     try {
       // Query both tables in PARALLEL for better performance
-      // Only query by ID for speed (email lookups are slow without proper indexes)
       const [adminRes, memberRes] = await Promise.all([
-        withTiming('admin_master by id', () => 
-          supabase.from('admin_master')
-            .select('admin_name, admin_email, status, admin_id')
-            .eq('admin_id', userId)
-            .maybeSingle()
-        ).catch(err => {
-          console.error('admin_master by id failed:', err);
-          return { data: null, error: err };
-        }),
-        withTiming('user_master by id', () => 
-          supabase.from('user_master')
-            .select('user_name, email, user_id, status, admin_approved')
-            .eq('user_id', userId)
-            .maybeSingle()
-        ).catch(err => {
-          console.error('user_master by id failed:', err);
-          return { data: null, error: err };
-        })
+        supabase.from('admin_master')
+          .select('admin_name, admin_email, status, admin_id')
+          .eq('admin_id', userId)
+          .maybeSingle(),
+        supabase.from('user_master')
+          .select('user_name, email, user_id, status, admin_approved')
+          .eq('user_id', userId)
+          .maybeSingle()
       ]);
 
       console.log('[useAuth] Parallel queries completed');
 
-      let adminData = (adminRes as any)?.data;
-      let memberData = (memberRes as any)?.data;
+      const adminData = adminRes?.data;
+      const memberData = memberRes?.data;
 
       // If admin found, use admin data
       if (adminData) {
@@ -208,18 +153,11 @@ export const useAuth = () => {
       // If member found, check approval and use member data
       if (memberData) {
         console.log('[useAuth] Member user found');
+        
         // Check if user is not approved
         if (!memberData.admin_approved) {
           try {
-            const { error } = await supabase.auth.signOut();
-            if (error) {
-              const msg = (error?.message || '').toString();
-              if (!msg.toLowerCase().includes('auth session') && 
-                  !msg.toLowerCase().includes('no active session') && 
-                  !msg.toLowerCase().includes('session missing')) {
-                throw error;
-              }
-            }
+            await supabase.auth.signOut();
           } catch (err) {
             console.error('Error signing out during fetchUserData:', err);
           }
@@ -277,29 +215,28 @@ export const useAuth = () => {
     try {
       const { error } = await supabase.auth.signOut();
 
-      // Supabase may return an error when there is no active session (e.g. "Auth
-      // session missing"). Treat that as an already-signed-out state and proceed
-      // to clear local state so the UI doesn't get stuck.
       if (error) {
         const msg = (error?.message || '').toString();
-        if (msg.toLowerCase().includes('auth session') || msg.toLowerCase().includes('no active session') || msg.toLowerCase().includes('session missing')) {
-          console.warn('signOut: remote session missing - treating as logged out', msg);
+        if (msg.toLowerCase().includes('auth session') || 
+            msg.toLowerCase().includes('no active session') || 
+            msg.toLowerCase().includes('session missing')) {
+          console.warn('signOut: remote session missing - treating as logged out');
         } else {
           throw error;
         }
       }
 
-      // Clear local auth state regardless
+      // Clear local auth state
       setUser(null);
       setUserData(null);
       userDataRef.current = null;
+      initialSessionHandledRef.current = false;
 
       toast({
         title: 'Success',
         description: 'Logged out successfully',
       });
 
-      // Optionally redirect to home
       window.location.href = '#home';
     } catch (error: any) {
       console.error('Error logging out:', error);
