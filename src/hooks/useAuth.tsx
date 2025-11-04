@@ -16,12 +16,16 @@ export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const { toast } = useToast();
 
   const fetchUserData = useCallback(async (userId: string, email: string) => {
     try {
       console.log('🔍 [START] Fetching user data for:', { userId, email });
       const startTime = performance.now();
+      
+      // Wait a bit for auth to stabilize after refresh
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // ============= ADMIN CHECK =============
       console.log('📋 Checking admin_master by ID...');
@@ -166,10 +170,46 @@ export const useAuth = () => {
 
   useEffect(() => {
     let mounted = true;
+    let authSubscription: any = null;
 
-    const getInitialSession = async () => {
+    const initializeAuth = async () => {
       try {
-        console.log('🚀 Getting initial session...');
+        console.log('🚀 Initializing auth...');
+        
+        // First, set up the auth state listener BEFORE getting session
+        // This ensures we catch the INITIAL_SESSION event
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('🔄 Auth event:', event, session?.user?.email);
+            
+            // Mark auth as initialized on first event
+            if (!authInitialized && mounted) {
+              setAuthInitialized(true);
+            }
+            
+            if (mounted) {
+              if (session?.user) {
+                setUser(session.user);
+                // Only fetch user data after auth is initialized
+                if (event !== 'INITIAL_SESSION' || authInitialized) {
+                  await fetchUserData(session.user.id, session.user.email || '');
+                }
+              } else {
+                setUser(null);
+                setUserData(null);
+              }
+              setLoading(false);
+            }
+          }
+        );
+        
+        authSubscription = subscription;
+        
+        // Small delay to let auth listener register
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Now get the session
+        console.log('📱 Getting session...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -177,9 +217,11 @@ export const useAuth = () => {
           throw error;
         }
         
-        console.log('📱 Session retrieved:', session?.user?.email || 'No user');
+        console.log('✅ Session retrieved:', session?.user?.email || 'No user');
         
         if (mounted) {
+          setAuthInitialized(true);
+          
           if (session?.user) {
             setUser(session.user);
             await fetchUserData(session.user.id, session.user.email || '');
@@ -187,43 +229,27 @@ export const useAuth = () => {
             setUser(null);
             setUserData(null);
           }
+          setLoading(false);
+          console.log('✅ Auth initialization complete');
         }
       } catch (error) {
-        console.error('💥 Error getting session:', error);
-      } finally {
+        console.error('💥 Error initializing auth:', error);
         if (mounted) {
           setLoading(false);
-          console.log('✅ Initial load complete');
         }
       }
     };
 
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔄 Auth state changed:', event, session?.user?.email);
-        
-        if (mounted) {
-          if (session?.user) {
-            setUser(session.user);
-            await fetchUserData(session.user.id, session.user.email || '');
-          } else {
-            setUser(null);
-            setUserData(null);
-          }
-          setLoading(false);
-        }
-      }
-    );
+    initializeAuth();
 
     return () => {
+      console.log('🧹 Cleanup: Unmounting auth hook');
       mounted = false;
-      subscription.unsubscribe();
-      console.log('🧹 Cleanup: Auth listener unsubscribed');
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
     };
-  }, [fetchUserData]);
+  }, [fetchUserData, authInitialized]);
 
   const signOut = async () => {
     try {
@@ -233,6 +259,7 @@ export const useAuth = () => {
       
       setUser(null);
       setUserData(null);
+      setAuthInitialized(false);
       
       toast({
         title: 'Success',
