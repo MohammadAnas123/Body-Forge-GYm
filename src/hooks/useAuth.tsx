@@ -19,14 +19,12 @@ export const useAuth = () => {
   const { toast } = useToast();
   const userDataRef = useRef<UserData | null>(null);
   const loadingTimeoutRef = useRef<number | null>(null);
+  const isFetchingRef = useRef(false); // Prevent concurrent fetches
 
   useEffect(() => {
-    // Get initial session
     const getInitialSession = async () => {
       try {
-        console.log('[useAuth] getInitialSession: starting');
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('[useAuth] getInitialSession: session', !!session);
         if (session?.user) {
           setUser(session.user);
           await fetchUserData(session.user.id, session.user.email || '');
@@ -47,30 +45,53 @@ export const useAuth = () => {
 
     getInitialSession();
 
-    // Listen for auth changes
-    console.log('[useAuth] setting up onAuthStateChange subscription');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('[useAuth] Auth state changed:', event, session?.user?.email);
+        console.log('[useAuth] Auth state change event:', event);
         
-        // Only fetch user data on specific events, not on TOKEN_REFRESHED
-        if (event === 'TOKEN_REFRESHED' && userDataRef.current) {
-          // Skip fetching user data on token refresh if we already have it
-          console.log('Token refreshed, skipping user data fetch');
+        // Skip refetching for these events if we already have user data
+        if (userDataRef.current && (
+          event === 'TOKEN_REFRESHED' || 
+          event === 'USER_UPDATED'
+        )) {
+          console.log('[useAuth] Skipping refetch for event:', event);
+          // Just update the user object, keep userData
+          if (session?.user) {
+            setUser(session.user);
+          }
           return;
         }
         
-        if (session?.user) {
+        // Handle SIGNED_IN
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('[useAuth] SIGNED_IN event');
           setUser(session.user);
-          // Only fetch if user ID changed or we don't have user data
+          // Only fetch if we don't have data or it's a different user
           if (!userDataRef.current || userDataRef.current.id !== session.user.id) {
+            console.log('[useAuth] Fetching user data for SIGNED_IN');
             await fetchUserData(session.user.id, session.user.email || '');
+          } else {
+            console.log('[useAuth] User data already cached, skipping fetch');
           }
-        } else {
+        } 
+        // Handle SIGNED_OUT
+        else if (event === 'SIGNED_OUT') {
+          console.log('[useAuth] SIGNED_OUT event');
           setUser(null);
           setUserData(null);
           userDataRef.current = null;
         }
+        // Handle INITIAL_SESSION - only if no data cached
+        else if (event === 'INITIAL_SESSION' && session?.user) {
+          console.log('[useAuth] INITIAL_SESSION event');
+          if (!userDataRef.current) {
+            setUser(session.user);
+            await fetchUserData(session.user.id, session.user.email || '');
+          } else {
+            console.log('[useAuth] User data already cached for INITIAL_SESSION');
+          }
+        }
+        
         if (loadingTimeoutRef.current) {
           clearTimeout(loadingTimeoutRef.current as any);
           loadingTimeoutRef.current = null;
@@ -79,10 +100,8 @@ export const useAuth = () => {
       }
     );
 
-    // safety fallback: if nothing resolves within 10s, stop the loading state and log a warning
     if (!loadingTimeoutRef.current) {
       loadingTimeoutRef.current = window.setTimeout(() => {
-        console.warn('[useAuth] loading timeout reached — forcing loading=false');
         setLoading(false);
         loadingTimeoutRef.current = null;
       }, 10000);
@@ -98,41 +117,43 @@ export const useAuth = () => {
   }, []);
 
   const fetchUserData = async (userId: string, email: string) => {
-    // Wrap each Supabase call with a timeout so we can identify which call hangs
-    const withTimeout = async <T,>(p: Promise<T>, ms: number, label: string) => {
-      return new Promise<T>((resolve, reject) => {
-        let done = false;
-        const timer = window.setTimeout(() => {
-          if (done) return;
-          done = true;
-          reject(new Error(`Timeout waiting for ${label}`));
-        }, ms);
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      console.log('[useAuth] Already fetching user data, skipping...');
+      return;
+    }
 
-        p.then((res) => {
-          if (done) return;
-          done = true;
-          clearTimeout(timer as any);
-          resolve(res as T);
-        }).catch((err) => {
-          if (done) return;
-          done = true;
-          clearTimeout(timer as any);
-          reject(err);
-        });
-      });
+    // If we already have data for this user, skip
+    if (userDataRef.current && userDataRef.current.id === userId) {
+      console.log('[useAuth] User data already cached for userId:', userId);
+      return;
+    }
+
+    isFetchingRef.current = true;
+    console.log('[useAuth] Starting fetchUserData for:', userId);
+
+    // Helper to time each query
+    const withTiming = async <T,>(label: string, fn: () => Promise<T>, ms: number = 100000) => {
+      const start = performance.now();
+      let timeoutId: number | null = null;
+      try {
+        timeoutId = window.setTimeout(() => {
+          console.warn(`[useAuth] Query '${label}' timed out after ${ms}ms`);
+        }, ms);
+        const result = await fn();
+        const duration = performance.now() - start;
+        console.log(`[useAuth] Query '${label}' completed in ${duration.toFixed(1)}ms`);
+        return result;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId as any);
+      }
     };
 
     try {
-      console.log('Fetching user data for:', { userId, email });
-
-      // First, try to find admin by admin_id
+      // Time admin_master by id
       let adminRes;
       try {
-        adminRes = await withTimeout(
-          supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').eq('admin_id', userId).maybeSingle(),
-          8000,
-          'admin_master by id'
-        );
+        adminRes = await withTiming('admin_master by id', () => supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').eq('admin_id', userId).maybeSingle());
       } catch (err) {
         console.error('admin_master by id failed:', err);
         throw err;
@@ -143,26 +164,16 @@ export const useAuth = () => {
 
       // If not found by ID, try by email
       if (!adminData && !adminError) {
-        console.log('Admin not found by ID, trying email...');
         try {
-          const result = await withTimeout(
-            supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').ilike('admin_email', email.trim().toLowerCase()).maybeSingle(),
-            8000,
-            'admin_master by email'
-          );
+          const result = await withTiming('admin_master by email', () => supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').ilike('admin_email', email.trim().toLowerCase()).maybeSingle());
           adminData = (result as any)?.data;
           adminError = (result as any)?.error;
         } catch (err) {
           console.error('admin_master by email failed:', err);
-          // continue to next checks
         }
       }
 
-      console.log('Admin query result:', { adminData, adminError });
-
       if (!adminError && adminData) {
-        // User is an admin
-        console.log('Admin found:', adminData);
         const newUserData = {
           id: userId,
           name: adminData.admin_name || 'Admin',
@@ -174,14 +185,10 @@ export const useAuth = () => {
         return;
       }
 
-      // If not admin, check user_master
+      // Time user_master by id
       let memberRes;
       try {
-        memberRes = await withTimeout(
-          supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').eq('user_id', userId).maybeSingle(),
-          8000,
-          'user_master by id'
-        );
+        memberRes = await withTiming('user_master by id', () => supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').eq('user_id', userId).maybeSingle());
       } catch (err) {
         console.error('user_master by id failed:', err);
         throw err;
@@ -192,13 +199,8 @@ export const useAuth = () => {
 
       // If not found by ID, try by email
       if (!memberData && !memberError) {
-        console.log('User not found by ID, trying email...');
         try {
-          const result = await withTimeout(
-            supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').ilike('email', email.trim().toLowerCase()).maybeSingle(),
-            8000,
-            'user_master by email'
-          );
+          const result = await withTiming('user_master by email', () => supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').ilike('email', email.trim().toLowerCase()).maybeSingle());
           memberData = (result as any)?.data;
           memberError = (result as any)?.error;
         } catch (err) {
@@ -206,20 +208,15 @@ export const useAuth = () => {
         }
       }
 
-      console.log('User query result:', { memberData, memberError });
-
       if (!memberError && memberData) {
-        console.log('User found:', memberData);
-
         // Check if user is not approved
         if (!memberData.admin_approved) {
-          // Try signing out remotely; treat missing/expired sessions as non-fatal
           try {
             const { error } = await supabase.auth.signOut();
             if (error) {
               const msg = (error?.message || '').toString();
               if (msg.toLowerCase().includes('auth session') || msg.toLowerCase().includes('no active session') || msg.toLowerCase().includes('session missing')) {
-                console.warn('signOut during fetchUserData: remote session missing', msg);
+                // ignore
               } else {
                 throw error;
               }
@@ -252,7 +249,6 @@ export const useAuth = () => {
       }
 
       // If neither admin nor user found
-      console.warn('User not found in admin_master or user_master');
       const newUserData = {
         id: userId,
         name: email.split('@')[0],
@@ -272,6 +268,8 @@ export const useAuth = () => {
       };
       userDataRef.current = newUserData;
       setUserData(newUserData);
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
