@@ -1,6 +1,5 @@
-// src/hooks/useAuth.tsx
+// src/hooks/useAuth.tsx - Custom Session Management
 import { useState, useEffect, useRef } from 'react';
-import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
@@ -12,136 +11,114 @@ interface UserData {
   status?: string;
 }
 
+interface StoredSession {
+  userId: string;
+  email: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
+
+const SESSION_KEY = 'app_session';
+const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const userDataRef = useRef<UserData | null>(null);
-  const isFetchingRef = useRef(false);
-  const initialSessionHandledRef = useRef(false);
 
+  // Save session to localStorage
+  const saveSession = (session: StoredSession) => {
+    console.log('[useAuth] Saving session to localStorage');
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  };
+
+  // Load session from localStorage
+  const loadSession = (): StoredSession | null => {
+    try {
+      const stored = localStorage.getItem(SESSION_KEY);
+      if (!stored) return null;
+      
+      const session: StoredSession = JSON.parse(stored);
+      
+      // Check if session is expired
+      if (Date.now() > session.expiresAt) {
+        console.log('[useAuth] Session expired');
+        clearSession();
+        return null;
+      }
+      
+      return session;
+    } catch (error) {
+      console.error('[useAuth] Error loading session:', error);
+      return null;
+    }
+  };
+
+  // Clear session from localStorage
+  const clearSession = () => {
+    console.log('[useAuth] Clearing session');
+    localStorage.removeItem(SESSION_KEY);
+  };
+
+  // Verify session with Supabase (optional - for extra security)
+  const verifySessionWithSupabase = async (accessToken: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.getUser(accessToken);
+      return !error && !!data.user;
+    } catch {
+      return false;
+    }
+  };
+
+  // Initialize auth on mount
   useEffect(() => {
-    console.log('[useAuth] useEffect mounting...');
+    console.log('[useAuth] Initializing...');
     
-    const getInitialSession = async () => {
-      console.log('[useAuth] getInitialSession START');
-      try {
-        console.log('[useAuth] Calling supabase.auth.getSession()...');
+    const initAuth = async () => {
+      // First, try to load session from localStorage
+      const session = loadSession();
+      
+      if (session) {
+        console.log('[useAuth] Found stored session for user:', session.userId);
         
-        // Add timeout to getSession call to prevent infinite hanging
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('getSession timeout')), 5000)
-        );
+        // Optionally verify with Supabase (comment out for faster load)
+        // const isValid = await verifySessionWithSupabase(session.accessToken);
+        // if (!isValid) {
+        //   console.log('[useAuth] Session invalid, clearing');
+        //   clearSession();
+        //   setLoading(false);
+        //   return;
+        // }
         
-        const { data: { session } } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
+        // Set user from stored session
+        setUser({ id: session.userId, email: session.email });
         
-        console.log('[useAuth] getSession() returned, session exists:', !!session);
-        
-        if (session?.user) {
-          console.log('[useAuth] Setting user and fetching user data...');
-          setUser(session.user);
-          await fetchUserData(session.user.id, session.user.email || '');
-          console.log('[useAuth] fetchUserData completed');
-        } else {
-          console.log('[useAuth] No session found, clearing user data');
-          setUser(null);
-          setUserData(null);
-        }
-        
-        // Mark initial session as handled
-        initialSessionHandledRef.current = true;
-      } catch (error: any) {
-        console.error('[useAuth] Error getting session:', error);
-        
-        // If getSession times out or fails, mark as handled anyway
-        // to prevent onAuthStateChange from being blocked
-        initialSessionHandledRef.current = true;
-        
-        if (error?.message === 'getSession timeout') {
-          console.warn('[useAuth] getSession timed out - will rely on onAuthStateChange');
-        }
-      } finally {
-        console.log('[useAuth] getInitialSession FINALLY block');
-        setLoading(false);
-        console.log('[useAuth] Loading set to false');
+        // Fetch user data
+        await fetchUserData(session.userId, session.email);
+      } else {
+        console.log('[useAuth] No stored session found');
       }
+      
+      setLoading(false);
     };
 
-    getInitialSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('[useAuth] Auth state change event:', event);
-        
-        // Handle SIGNED_IN - but only fetch if initial session didn't already handle it
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('[useAuth] SIGNED_IN event, initialHandled:', initialSessionHandledRef.current);
-          setUser(session.user);
-          
-          // Only fetch if we don't have data yet or it's a different user
-          if (!userDataRef.current || userDataRef.current.id !== session.user.id) {
-            console.log('[useAuth] Fetching user data for SIGNED_IN');
-            await fetchUserData(session.user.id, session.user.email || '');
-          } else {
-            console.log('[useAuth] User data already cached, skipping fetch');
-          }
-          
-          setLoading(false);
-          return;
-        }
-        
-        // Skip refetching for token refresh/updates if we already have data
-        if (userDataRef.current && (
-          event === 'TOKEN_REFRESHED' || 
-          event === 'USER_UPDATED'
-        )) {
-          console.log('[useAuth] Skipping refetch for event:', event);
-          if (session?.user) {
-            setUser(session.user);
-          }
-          return;
-        }
-        
-        // Handle SIGNED_OUT
-        if (event === 'SIGNED_OUT') {
-          console.log('[useAuth] SIGNED_OUT event');
-          setUser(null);
-          setUserData(null);
-          userDataRef.current = null;
-          initialSessionHandledRef.current = false;
-          setLoading(false);
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    initAuth();
   }, []);
 
   const fetchUserData = async (userId: string, email: string) => {
-    // Prevent concurrent fetches
-    if (isFetchingRef.current) {
-      console.log('[useAuth] Already fetching user data, skipping...');
-      return;
-    }
-
     // If we already have data for this user, skip
     if (userDataRef.current && userDataRef.current.id === userId) {
-      console.log('[useAuth] User data already cached for userId:', userId);
+      console.log('[useAuth] User data already cached');
       return;
     }
 
-    isFetchingRef.current = true;
-    console.log('[useAuth] Starting fetchUserData for:', userId);
+    console.log('[useAuth] Fetching user data for:', userId);
 
     try {
-      // Query both tables in PARALLEL for better performance
+      // Query both tables in PARALLEL
       const [adminRes, memberRes] = await Promise.all([
         supabase.from('admin_master')
           .select('admin_name, admin_email, status, admin_id')
@@ -153,12 +130,10 @@ export const useAuth = () => {
           .maybeSingle()
       ]);
 
-      console.log('[useAuth] Parallel queries completed');
-
       const adminData = adminRes?.data;
       const memberData = memberRes?.data;
 
-      // If admin found, use admin data
+      // If admin found
       if (adminData) {
         console.log('[useAuth] Admin user found');
         const newUserData = {
@@ -172,26 +147,18 @@ export const useAuth = () => {
         return;
       }
 
-      // If member found, check approval and use member data
+      // If member found
       if (memberData) {
         console.log('[useAuth] Member user found');
         
         // Check if user is not approved
         if (!memberData.admin_approved) {
-          try {
-            await supabase.auth.signOut();
-          } catch (err) {
-            console.error('Error signing out during fetchUserData:', err);
-          }
-
+          await signOut();
           toast({
             title: 'Approval Pending',
             description: 'Your account is pending admin approval.',
             variant: 'destructive',
           });
-          setUser(null);
-          setUserData(null);
-          userDataRef.current = null;
           return;
         }
 
@@ -207,7 +174,7 @@ export const useAuth = () => {
         return;
       }
 
-      // If neither found, create default user data
+      // Default user data
       console.log('[useAuth] User not found in database, using defaults');
       const newUserData = {
         id: userId,
@@ -228,31 +195,69 @@ export const useAuth = () => {
       };
       userDataRef.current = newUserData;
       setUserData(newUserData);
-    } finally {
-      isFetchingRef.current = false;
     }
   };
 
-  const signOut = async () => {
+  // Sign in function - call this after successful Supabase auth
+  const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signOut();
+      // Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      if (error) {
-        const msg = (error?.message || '').toString();
-        if (msg.toLowerCase().includes('auth session') || 
-            msg.toLowerCase().includes('no active session') || 
-            msg.toLowerCase().includes('session missing')) {
-          console.warn('signOut: remote session missing - treating as logged out');
-        } else {
-          throw error;
-        }
+      if (error) throw error;
+
+      if (data.session && data.user) {
+        // Store our own session
+        const session: StoredSession = {
+          userId: data.user.id,
+          email: data.user.email || email,
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+          expiresAt: Date.now() + SESSION_DURATION
+        };
+        
+        saveSession(session);
+        setUser({ id: data.user.id, email: data.user.email || email });
+        
+        // Fetch user data
+        await fetchUserData(data.user.id, data.user.email || email);
+
+        toast({
+          title: 'Success',
+          description: 'Logged in successfully',
+        });
+
+        return { success: true };
       }
 
-      // Clear local auth state
+      return { success: false, error: 'No session returned' };
+    } catch (error: any) {
+      console.error('Error signing in:', error);
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Sign out function
+  const signOut = async () => {
+    try {
+      // Sign out from Supabase (optional - can be done in background)
+      supabase.auth.signOut().catch(err => {
+        console.warn('Supabase signOut error (non-blocking):', err);
+      });
+
+      // Immediately clear local session
+      clearSession();
       setUser(null);
       setUserData(null);
       userDataRef.current = null;
-      initialSessionHandledRef.current = false;
 
       toast({
         title: 'Success',
@@ -274,6 +279,7 @@ export const useAuth = () => {
     user,
     userData,
     loading,
+    signIn,
     signOut,
     isAdmin: userData?.isAdmin || false,
     userName: userData?.name || '',
