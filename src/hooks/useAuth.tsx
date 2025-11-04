@@ -71,7 +71,7 @@ export const useAuth = () => {
         .select('admin_name, admin_email, status, admin_id')
         .eq('admin_id', userId)
         .maybeSingle();
-
+      console.log("Admin data fetch attempt complete."+adminData);
       // If not found by ID, try by email
       if (!adminData && !adminError) {
         console.log('Admin not found by ID, trying email...');
