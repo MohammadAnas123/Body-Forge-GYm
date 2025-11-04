@@ -15,6 +15,7 @@ interface UserData {
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
+  // Initialize loading to true
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
@@ -22,154 +23,123 @@ export const useAuth = () => {
   const fetchingRef = useRef(false);
   const mountedRef = useRef(true);
 
+  // --- Fetch User Data Logic (Simplified and Enhanced) ---
   const fetchUserData = useCallback(async (userId: string, email: string) => {
-    // Prevent duplicate fetches
+    if (!mountedRef.current) return; // Exit early if unmounted
     if (fetchingRef.current) {
       console.log('⏭️ Skipping fetch - already in progress');
       return;
     }
 
     fetchingRef.current = true;
-    
+    const startTime = performance.now();
+    let userDataFound = false;
+
     try {
       console.log('🔍 [START] Fetching user data for:', { userId, email });
-      const startTime = performance.now();
-      
-      // ============= ADMIN CHECK =============
-      console.log('📋 Checking admin_master by ID...');
+      const lowerEmail = email.trim().toLowerCase();
+
+      // --- Attempt 1: Check Admin by ID then Email ---
       let { data: adminData, error: adminError } = await supabase
         .from('admin_master')
         .select('admin_name, admin_email, status, admin_id')
         .eq('admin_id', userId)
         .maybeSingle();
-      
-      // Check if component unmounted during query
-      if (!mountedRef.current) {
-        console.log('🛑 Component unmounted, aborting');
-        return;
+
+      if (adminError) {
+        console.error('❌ Admin query error (by ID):', adminError);
       }
       
-      console.log('✅ Admin by ID response:', { 
-        data: adminData, 
-        error: adminError,
-        timeMs: (performance.now() - startTime).toFixed(2)
-      });
-
-      // If not found by ID, try by email
       if (!adminData && !adminError) {
-        console.log('📧 Admin not found by ID, trying email...');
-        
+        // Try by email if not found by ID and no ID error
         const result = await supabase
           .from('admin_master')
           .select('admin_name, admin_email, status, admin_id')
-          .ilike('admin_email', email.trim().toLowerCase())
+          .ilike('admin_email', lowerEmail)
           .maybeSingle();
-        
-        if (!mountedRef.current) {
-          console.log('🛑 Component unmounted, aborting');
-          return;
-        }
         
         adminData = result.data;
         adminError = result.error;
-        
-        console.log('✅ Admin by email response:', { data: adminData, error: adminError });
+
+        if (adminError) {
+            console.error('❌ Admin query error (by email):', adminError);
+        }
       }
 
-      if (adminError) {
-        console.error('❌ Admin query error:', adminError);
-      }
+      if (!mountedRef.current) return; // Re-check mounted after awaited calls
 
       if (adminData) {
         console.log('✨ ADMIN FOUND:', adminData);
-        if (mountedRef.current) {
-          setUserData({
-            id: userId,
-            name: adminData.admin_name || 'Admin',
-            email: adminData.admin_email,
-            isAdmin: true
-          });
-        }
-        console.log(`⏱️ Total fetch time: ${(performance.now() - startTime).toFixed(2)}ms`);
-        return;
+        setUserData({
+          id: userId,
+          name: adminData.admin_name || 'Admin',
+          email: adminData.admin_email,
+          isAdmin: true
+        });
+        userDataFound = true;
       }
 
-      // ============= USER CHECK =============
-      console.log('📋 Checking user_master by ID...');
-      
-      let { data: memberData, error: memberError } = await supabase
-        .from('user_master')
-        .select('user_name, email, user_id, status, admin_approved')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!mountedRef.current) {
-        console.log('🛑 Component unmounted, aborting');
-        return;
-      }
-
-      console.log('✅ User by ID response:', { data: memberData, error: memberError });
-
-      // If not found by ID, try by email
-      if (!memberData && !memberError) {
-        console.log('📧 User not found by ID, trying email...');
-        
-        const result = await supabase
+      // --- Attempt 2: Check Standard User if not Admin ---
+      if (!userDataFound) {
+        let { data: memberData, error: memberError } = await supabase
           .from('user_master')
           .select('user_name, email, user_id, status, admin_approved')
-          .ilike('email', email.trim().toLowerCase())
+          .eq('user_id', userId)
           .maybeSingle();
-        
-        if (!mountedRef.current) {
-          console.log('🛑 Component unmounted, aborting');
-          return;
+
+        if (memberError) {
+            console.error('❌ User query error (by ID):', memberError);
         }
         
-        memberData = result.data;
-        memberError = result.error;
-        
-        console.log('✅ User by email response:', { data: memberData, error: memberError });
-      }
+        if (!memberData && !memberError) {
+          // Try by email if not found by ID and no ID error
+          const result = await supabase
+            .from('user_master')
+            .select('user_name, email, user_id, status, admin_approved')
+            .ilike('email', lowerEmail)
+            .maybeSingle();
+            
+          memberData = result.data;
+          memberError = result.error;
+          
+          if (memberError) {
+              console.error('❌ User query error (by email):', memberError);
+          }
+        }
 
-      if (memberError) {
-        console.error('❌ User query error:', memberError);
-      }
+        if (!mountedRef.current) return; // Re-check mounted
 
-      if (memberData) {
-        console.log('✨ USER FOUND:', memberData);
-        
-        // Check if user is not approved
-        if (!memberData.admin_approved) {
-          console.warn('⚠️ User not approved, signing out...');
-          await supabase.auth.signOut();
-          if (mountedRef.current) {
+        if (memberData) {
+          console.log('✨ USER FOUND:', memberData);
+          userDataFound = true;
+          
+          if (!memberData.admin_approved) {
+            console.warn('⚠️ User not approved, signing out...');
+            await supabase.auth.signOut();
+            // Note: The auth listener handles the state reset (user/userData = null)
             toast({
               title: 'Approval Pending',
               description: 'Your account is pending admin approval.',
               variant: 'destructive',
             });
-            setUser(null);
+            // Setting userData to null immediately ensures unapproved user data isn't used
             setUserData(null);
+            setUser(null); 
+          } else {
+            setUserData({
+              id: userId,
+              name: memberData.user_name || 'User',
+              email: memberData.email,
+              isAdmin: false,
+              status: memberData.status
+            });
           }
-          return;
         }
-
-        if (mountedRef.current) {
-          setUserData({
-            id: userId,
-            name: memberData.user_name || 'User',
-            email: memberData.email,
-            isAdmin: false,
-            status: memberData.status
-          });
-        }
-        console.log(`⏱️ Total fetch time: ${(performance.now() - startTime).toFixed(2)}ms`);
-        return;
       }
 
-      // ============= NOT FOUND =============
-      console.warn('⚠️ User not found in either table, using defaults');
-      if (mountedRef.current) {
+      // --- Not Found Case ---
+      if (!userDataFound) {
+        console.warn('⚠️ User not found in either table, using defaults');
         setUserData({
           id: userId,
           name: email.split('@')[0],
@@ -177,6 +147,7 @@ export const useAuth = () => {
           isAdmin: false
         });
       }
+
       console.log(`⏱️ Total fetch time: ${(performance.now() - startTime).toFixed(2)}ms`);
 
     } catch (error) {
@@ -194,66 +165,61 @@ export const useAuth = () => {
     }
   }, [toast]);
 
+  // --- Main Auth Effect ---
   useEffect(() => {
     mountedRef.current = true;
     let authSubscription: any = null;
 
     const initializeAuth = async () => {
-      try {
-        console.log('🚀 Initializing auth...');
-        
-        // Set up auth listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            console.log('🔄 Auth event:', event, session?.user?.email);
-            
-            if (!mountedRef.current) {
-              console.log('🛑 Not mounted, ignoring auth event');
-              return;
-            }
-            
-            if (session?.user) {
-              setUser(session.user);
-              await fetchUserData(session.user.id, session.user.email || '');
-            } else {
-              setUser(null);
-              setUserData(null);
-            }
-            
-            if (mountedRef.current) {
-              setLoading(false);
-            }
+      console.log('🚀 Initializing auth...');
+      
+      // 1. Get initial session
+      console.log('📱 Getting session...');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('❌ Session error:', error);
+        // Handle error, but still set loading to false
+      }
+
+      // 2. Process initial session
+      if (mountedRef.current && session?.user) {
+        console.log('✅ Session retrieved, processing user:', session.user.email);
+        setUser(session.user);
+        // Await fetching user data to ensure all initial work is done before setting loading=false
+        await fetchUserData(session.user.id, session.user.email || '');
+      } else {
+        console.log('✅ Session retrieved: No user');
+        setUser(null);
+        setUserData(null);
+      }
+      
+      // 3. Set up auth listener (non-blocking)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          console.log('🔄 Auth event:', event, session?.user?.email);
+          
+          if (!mountedRef.current) return;
+          
+          if (session?.user) {
+            setUser(session.user);
+            await fetchUserData(session.user.id, session.user.email || '');
+          } else {
+            setUser(null);
+            setUserData(null);
           }
-        );
-        
-        authSubscription = subscription;
-        
-        // Get initial session
-        console.log('📱 Getting session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Session error:', error);
-          throw error;
+          
+          // Only set loading false here if the initial state hasn't been set yet
+          // In this structure, the initial state is handled below, outside the listener.
         }
-        
-        console.log('✅ Session retrieved:', session?.user?.email || 'No user');
-        
-        // Only process if still mounted and session exists
-        if (mountedRef.current && session?.user) {
-          setUser(session.user);
-          await fetchUserData(session.user.id, session.user.email || '');
-        }
-        
-        if (mountedRef.current) {
-          setLoading(false);
-          console.log('✅ Auth initialization complete');
-        }
-      } catch (error) {
-        console.error('💥 Error initializing auth:', error);
-        if (mountedRef.current) {
-          setLoading(false);
-        }
+      );
+      
+      authSubscription = subscription;
+
+      // 4. Final step: Set loading to false once initial state is fully processed.
+      if (mountedRef.current) {
+        setLoading(false);
+        console.log('✅ Auth initialization complete and loading set to false');
       }
     };
 
@@ -267,14 +233,16 @@ export const useAuth = () => {
         authSubscription.unsubscribe();
       }
     };
-  }, [fetchUserData]);
+  }, [fetchUserData]); // Dependencies are correct
 
+  // --- Sign Out Logic (Unchanged) ---
   const signOut = async () => {
     try {
       console.log('👋 Signing out...');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
+      // State is mostly handled by auth listener, but setting explicitly helps local cleanup
       setUser(null);
       setUserData(null);
       
@@ -283,7 +251,7 @@ export const useAuth = () => {
         description: 'Logged out successfully',
       });
       
-      window.location.href = '#home';
+      window.location.href = '#home'; // Good for a non-SPA redirect or hash change
       console.log('✅ Signed out successfully');
     } catch (error: any) {
       console.error('💥 Error logging out:', error);
