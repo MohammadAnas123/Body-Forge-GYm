@@ -98,26 +98,64 @@ export const useAuth = () => {
   }, []);
 
   const fetchUserData = async (userId: string, email: string) => {
+    // Wrap each Supabase call with a timeout so we can identify which call hangs
+    const withTimeout = async <T,>(p: Promise<T>, ms: number, label: string) => {
+      return new Promise<T>((resolve, reject) => {
+        let done = false;
+        const timer = window.setTimeout(() => {
+          if (done) return;
+          done = true;
+          reject(new Error(`Timeout waiting for ${label}`));
+        }, ms);
+
+        p.then((res) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer as any);
+          resolve(res as T);
+        }).catch((err) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer as any);
+          reject(err);
+        });
+      });
+    };
+
     try {
       console.log('Fetching user data for:', { userId, email });
-      
+
       // First, try to find admin by admin_id
-      let { data: adminData, error: adminError } = await supabase
-        .from('admin_master')
-        .select('admin_name, admin_email, status, admin_id')
-        .eq('admin_id', userId)
-        .maybeSingle();
+      let adminRes;
+      try {
+        adminRes = await withTimeout(
+          supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').eq('admin_id', userId).maybeSingle(),
+          8000,
+          'admin_master by id'
+        );
+      } catch (err) {
+        console.error('admin_master by id failed:', err);
+        throw err;
+      }
+
+      let adminData = (adminRes as any)?.data;
+      let adminError = (adminRes as any)?.error;
 
       // If not found by ID, try by email
       if (!adminData && !adminError) {
         console.log('Admin not found by ID, trying email...');
-        const result = await supabase
-          .from('admin_master')
-          .select('admin_name, admin_email, status, admin_id')
-          .ilike('admin_email', email.trim().toLowerCase())
-          .maybeSingle();
-        adminData = result.data;
-        adminError = result.error;
+        try {
+          const result = await withTimeout(
+            supabase.from('admin_master').select('admin_name, admin_email, status, admin_id').ilike('admin_email', email.trim().toLowerCase()).maybeSingle(),
+            8000,
+            'admin_master by email'
+          );
+          adminData = (result as any)?.data;
+          adminError = (result as any)?.error;
+        } catch (err) {
+          console.error('admin_master by email failed:', err);
+          // continue to next checks
+        }
       }
 
       console.log('Admin query result:', { adminData, adminError });
@@ -137,29 +175,42 @@ export const useAuth = () => {
       }
 
       // If not admin, check user_master
-      let { data: memberData, error: memberError } = await supabase
-        .from('user_master')
-        .select('user_name, email, user_id, status, admin_approved')
-        .eq('user_id', userId)
-        .maybeSingle();
+      let memberRes;
+      try {
+        memberRes = await withTimeout(
+          supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').eq('user_id', userId).maybeSingle(),
+          8000,
+          'user_master by id'
+        );
+      } catch (err) {
+        console.error('user_master by id failed:', err);
+        throw err;
+      }
+
+      let memberData = (memberRes as any)?.data;
+      let memberError = (memberRes as any)?.error;
 
       // If not found by ID, try by email
       if (!memberData && !memberError) {
         console.log('User not found by ID, trying email...');
-        const result = await supabase
-          .from('user_master')
-          .select('user_name, email, user_id, status, admin_approved')
-          .ilike('email', email.trim().toLowerCase())
-          .maybeSingle();
-        memberData = result.data;
-        memberError = result.error;
+        try {
+          const result = await withTimeout(
+            supabase.from('user_master').select('user_name, email, user_id, status, admin_approved').ilike('email', email.trim().toLowerCase()).maybeSingle(),
+            8000,
+            'user_master by email'
+          );
+          memberData = (result as any)?.data;
+          memberError = (result as any)?.error;
+        } catch (err) {
+          console.error('user_master by email failed:', err);
+        }
       }
 
       console.log('User query result:', { memberData, memberError });
 
       if (!memberError && memberData) {
         console.log('User found:', memberData);
-        
+
         // Check if user is not approved
         if (!memberData.admin_approved) {
           // Try signing out remotely; treat missing/expired sessions as non-fatal
