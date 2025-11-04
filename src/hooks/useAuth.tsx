@@ -18,13 +18,15 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const userDataRef = useRef<UserData | null>(null);
+  const loadingTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
       try {
+        console.log('[useAuth] getInitialSession: starting');
         const { data: { session } } = await supabase.auth.getSession();
-        
+        console.log('[useAuth] getInitialSession: session', !!session);
         if (session?.user) {
           setUser(session.user);
           await fetchUserData(session.user.id, session.user.email || '');
@@ -35,6 +37,10 @@ export const useAuth = () => {
       } catch (error) {
         console.error('Error getting session:', error);
       } finally {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current as any);
+          loadingTimeoutRef.current = null;
+        }
         setLoading(false);
       }
     };
@@ -42,9 +48,10 @@ export const useAuth = () => {
     getInitialSession();
 
     // Listen for auth changes
+    console.log('[useAuth] setting up onAuthStateChange subscription');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
+        console.log('[useAuth] Auth state changed:', event, session?.user?.email);
         
         // Only fetch user data on specific events, not on TOKEN_REFRESHED
         if (event === 'TOKEN_REFRESHED' && userDataRef.current) {
@@ -64,11 +71,28 @@ export const useAuth = () => {
           setUserData(null);
           userDataRef.current = null;
         }
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current as any);
+          loadingTimeoutRef.current = null;
+        }
         setLoading(false);
       }
     );
 
+    // safety fallback: if nothing resolves within 10s, stop the loading state and log a warning
+    if (!loadingTimeoutRef.current) {
+      loadingTimeoutRef.current = window.setTimeout(() => {
+        console.warn('[useAuth] loading timeout reached — forcing loading=false');
+        setLoading(false);
+        loadingTimeoutRef.current = null;
+      }, 10000);
+    }
+
     return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current as any);
+        loadingTimeoutRef.current = null;
+      }
       subscription.unsubscribe();
     };
   }, []);

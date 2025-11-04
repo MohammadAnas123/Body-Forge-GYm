@@ -106,32 +106,45 @@ const MemberDashboard = () => {
   }, [user]);
 
   const fetchAllData = async () => {
-    
+    console.log('[MemberDashboard] fetchAllData: start for user', user?.id);
+
     setLoading(true);
     setError(null);
-    
+
+    // safety timeout to avoid permanent loading state
+    let localTimeout: number | null = null;
     try {
+      localTimeout = window.setTimeout(() => {
+        console.warn('[MemberDashboard] fetchAllData: timeout reached');
+        setLoading(false);
+      }, 15000);
+
       // Fetch user profile
+      console.log('[MemberDashboard] fetching profile');
       const { data: profile, error: profileError } = await supabase
         .from('user_master')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
+      console.log('[MemberDashboard] profile result', { profile, profileError });
       if (profileError) throw profileError;
       setUserProfile(profile);
 
       // Fetch measurements
+      console.log('[MemberDashboard] fetching measurements');
       const { data: measurementsData, error: measurementsError } = await supabase
         .from('user_measurements')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true });
 
+      console.log('[MemberDashboard] measurements result', { measurementsError });
       if (measurementsError) throw measurementsError;
       setMeasurements(measurementsData || []);
 
       // Fetch active membership
+      console.log('[MemberDashboard] fetching membership');
       const { data: membershipData, error: membershipError } = await supabase
         .from('user_purchases')
         .select('*')
@@ -142,11 +155,13 @@ const MemberDashboard = () => {
         .limit(1)
         .single();
 
+      console.log('[MemberDashboard] membership result', { membershipData, membershipError });
       if (!membershipError && membershipData) {
         setActiveMembership(membershipData);
       }
 
       // Fetch workout logs
+      console.log('[MemberDashboard] fetching workouts');
       const { data: workoutsData, error: workoutsError } = await supabase
         .from('workout_logs')
         .select('*')
@@ -154,16 +169,22 @@ const MemberDashboard = () => {
         .order('date', { ascending: false })
         .limit(20);
 
+      console.log('[MemberDashboard] workouts result', { workoutsError });
       if (!workoutsError) {
         setWorkoutLogs(workoutsData || []);
       }
 
       // fetchTodayMeasurement();
     } catch (err) {
-      console.error('Error fetching data:', err);
+      console.error('[MemberDashboard] Error fetching data:', err);
       setError('Failed to load data. Please try again.');
     } finally {
+      if (localTimeout) {
+        clearTimeout(localTimeout as any);
+        localTimeout = null;
+      }
       setLoading(false);
+      console.log('[MemberDashboard] fetchAllData: finished');
     }
   };
 
