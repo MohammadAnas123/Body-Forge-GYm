@@ -19,7 +19,7 @@ export const useAuth = () => {
   const { toast } = useToast();
   const userDataRef = useRef<UserData | null>(null);
   const isFetchingRef = useRef(false);
-  const initialSessionHandledRef = useRef(false); // Prevent double initial fetch
+  const initialSessionHandledRef = useRef(false);
 
   useEffect(() => {
     console.log('[useAuth] useEffect mounting...');
@@ -28,7 +28,18 @@ export const useAuth = () => {
       console.log('[useAuth] getInitialSession START');
       try {
         console.log('[useAuth] Calling supabase.auth.getSession()...');
-        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Add timeout to getSession call to prevent infinite hanging
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('getSession timeout')), 5000)
+        );
+        
+        const { data: { session } } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+        
         console.log('[useAuth] getSession() returned, session exists:', !!session);
         
         if (session?.user) {
@@ -44,8 +55,16 @@ export const useAuth = () => {
         
         // Mark initial session as handled
         initialSessionHandledRef.current = true;
-      } catch (error) {
+      } catch (error: any) {
         console.error('[useAuth] Error getting session:', error);
+        
+        // If getSession times out or fails, mark as handled anyway
+        // to prevent onAuthStateChange from being blocked
+        initialSessionHandledRef.current = true;
+        
+        if (error?.message === 'getSession timeout') {
+          console.warn('[useAuth] getSession timed out - will rely on onAuthStateChange');
+        }
       } finally {
         console.log('[useAuth] getInitialSession FINALLY block');
         setLoading(false);
@@ -59,16 +78,19 @@ export const useAuth = () => {
       async (event, session) => {
         console.log('[useAuth] Auth state change event:', event);
         
-        // CRITICAL: Skip SIGNED_IN if we just handled initial session
-        // This prevents double-fetching on page load
-        if (event === 'SIGNED_IN' && !initialSessionHandledRef.current) {
-          console.log('[useAuth] SIGNED_IN event (not initial)');
-          if (session?.user) {
-            setUser(session.user);
-            if (!userDataRef.current || userDataRef.current.id !== session.user.id) {
-              await fetchUserData(session.user.id, session.user.email || '');
-            }
+        // Handle SIGNED_IN - but only fetch if initial session didn't already handle it
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('[useAuth] SIGNED_IN event, initialHandled:', initialSessionHandledRef.current);
+          setUser(session.user);
+          
+          // Only fetch if we don't have data yet or it's a different user
+          if (!userDataRef.current || userDataRef.current.id !== session.user.id) {
+            console.log('[useAuth] Fetching user data for SIGNED_IN');
+            await fetchUserData(session.user.id, session.user.email || '');
+          } else {
+            console.log('[useAuth] User data already cached, skipping fetch');
           }
+          
           setLoading(false);
           return;
         }
