@@ -83,15 +83,7 @@ const UserManagement = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      // Use RPC (Remote Procedure Call) or raw SQL query to efficiently update expired users
-      // This query finds all active users whose latest purchase has expired
-      const { error } = await supabase.rpc('update_expired_users', {
-        current_date: today
-      });
-
-      if (error) {
-        // If RPC doesn't exist, fall back to client-side logic with JOIN
-        const { data: usersWithPurchases, error: joinError } = await supabase
+      const { data: usersWithPurchases, error: joinError } = await supabase
           .from('user_master')
           .select(`
             user_id,
@@ -138,7 +130,7 @@ const UserManagement = () => {
               .in('user_id', expiredUserIds);
           }
         }
-      }
+      
       // Refresh users after updating statuses
     } catch (error: any) {
         console.error('Error updating expired user status:', error);

@@ -81,7 +81,7 @@ const Hero = () => {
         </h1>
         
         {/* Typing text effect with blinking cursor */}
-        <div className="relative h-20 sm:h-24 mb-0 sm:mb-8 max-w-md sm:max-w-3xl mx-auto">
+        <div className="relative h-20 sm:h-24  max-w-md sm:max-w-3xl mx-auto">
           <p className="text-lg sm:text-lg md:text-xl min-h-[80px] sm:min-h-[96px]">
             {typedText}
             <span className="inline-block w-0.5 h-5 sm:h-6 bg-red-500 ml-1 animate-blink"></span>
