@@ -81,62 +81,85 @@ const UserManagement = () => {
 
   const updateExpiredUserStatus = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
 
-      const { data: usersWithPurchases, error: joinError } = await supabase
-          .from('user_master')
-          .select(`
-            user_id,
-            status,
-            user_purchases!inner(
-              end_date,
-              payment_status
-            )
-          `)
-          .eq('status', 'active')
-          .eq('admin_approved', true)
-          .eq('is_blacklisted', false)
-          .eq('user_purchases.payment_status', 'completed')
-          .order('user_purchases.end_date', {foreignTable: 'fk_user_purchases_user', ascending: false });
-        
-        console.log("usersWithPurchases:"+JSON.stringify(usersWithPurchases));
-        console.log("error:"+joinError.toString());
-        if (joinError) throw joinError;
+  const { data: usersWithPurchases, error: joinError } = await supabase
+    .from('user_master')
+    .select(`
+      user_id,
+      status,
+      user_purchases!inner(
+        end_date,
+        payment_status
+      )
+    `)
+    .eq('status', 'active')
+    .eq('admin_approved', true)
+    .eq('is_blacklisted', false)
+    .eq('user_purchases.payment_status', 'completed')
+    .order('end_date', { foreignTable: 'user_purchases', ascending: false });
+  
+  if (joinError) {
+    console.error("Error fetching users:", joinError);
+    throw joinError;
+  }
 
-        if (usersWithPurchases && usersWithPurchases.length > 0) {
-          const expiredUserIds: string[] = [];
-          
-          // Group by user_id and get the latest purchase for each user
-          const userLatestPurchases = usersWithPurchases.reduce((acc: any, curr: any) => {
-            if (!acc[curr.user_id] || new Date(curr.user_purchases.end_date) > new Date(acc[curr.user_id].end_date)) {
-              acc[curr.user_id] = curr.user_purchases;
-            }
-            return acc;
-          }, {});
+  console.log("usersWithPurchases:", JSON.stringify(usersWithPurchases));
 
-          // Check which users have expired plans
-          Object.keys(userLatestPurchases).forEach(userId => {
-            const endDate = new Date(userLatestPurchases[userId].end_date);
-            const todayDate = new Date(today);
-            
-            if (endDate < todayDate) {
-              expiredUserIds.push(userId);
-            }
-          });
-
-          // Batch update all expired users
-          if (expiredUserIds.length > 0) {
-            await supabase
-              .from('user_master')
-              .update({ status: 'expired' })
-              .in('user_id', expiredUserIds);
-          }
-        }
+  if (usersWithPurchases && usersWithPurchases.length > 0) {
+    const expiredUserIds: string[] = [];
+    
+    // Group by user_id and get the latest purchase for each user
+    const userLatestPurchases = usersWithPurchases.reduce((acc: any, curr: any) => {
+      const currentEndDate = new Date(curr.user_purchases.end_date);
       
-      // Refresh users after updating statuses
-    } catch (error: any) {
-        console.error('Error updating expired user status:', error);
-    }finally{
+      if (!acc[curr.user_id] || currentEndDate > new Date(acc[curr.user_id].end_date)) {
+        acc[curr.user_id] = {
+          end_date: curr.user_purchases.end_date,
+          user_id: curr.user_id
+        };
+      }
+      return acc;
+    }, {});
+
+    // Check which users have expired plans
+    const todayDate = new Date(today);
+    
+    Object.keys(userLatestPurchases).forEach(userId => {
+      const endDate = new Date(userLatestPurchases[userId].end_date);
+      
+      if (endDate < todayDate) {
+        expiredUserIds.push(userId);
+      }
+    });
+
+    console.log(`Found ${expiredUserIds.length} expired users:`, expiredUserIds);
+
+    // Batch update all expired users
+    if (expiredUserIds.length > 0) {
+      const { data: updateData, error: updateError } = await supabase
+        .from('user_master')
+        .update({ status: 'expired' })
+        .in('user_id', expiredUserIds);
+      
+      if (updateError) {
+        console.error('Error updating expired users:', updateError);
+        throw updateError;
+      }
+      
+      console.log(`Successfully updated ${expiredUserIds.length} users to expired status`);
+    } else {
+      console.log('No expired users found');
+    }
+  } else {
+    console.log('No active users with purchases found');
+  }
+  
+  // Refresh users after updating statuses
+} catch (error: any) {
+  console.error('Error updating expired user status:', error);
+  throw error; // Re-throw if you want calling code to handle it
+}finally{
         fetchUsers();
     }
   };
