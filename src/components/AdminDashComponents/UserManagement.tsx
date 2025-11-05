@@ -100,7 +100,7 @@ const UserManagement = () => {
           .order('user_purchases.end_date', {foreignTable: 'fk_user_purchases_user', ascending: false });
         
         console.log("usersWithPurchases:"+JSON.stringify(usersWithPurchases));
-        console.log("error:"+joinError);
+        console.log("error:"+joinError.toString());
         if (joinError) throw joinError;
 
         if (usersWithPurchases && usersWithPurchases.length > 0) {
