@@ -108,28 +108,24 @@ const UserManagement = () => {
 
   if (usersWithPurchases && usersWithPurchases.length > 0) {
     const expiredUserIds: string[] = [];
-    
-    // Group by user_id and get the latest purchase for each user
-    const userLatestPurchases = usersWithPurchases.reduce((acc: any, curr: any) => {
-      const currentEndDate = new Date(curr.user_purchases.end_date);
-      
-      if (!acc[curr.user_id] || currentEndDate > new Date(acc[curr.user_id].end_date)) {
-        acc[curr.user_id] = {
-          end_date: curr.user_purchases.end_date,
-          user_id: curr.user_id
-        };
-      }
-      return acc;
-    }, {});
-
-    // Check which users have expired plans
     const todayDate = new Date(today);
     
-    Object.keys(userLatestPurchases).forEach(userId => {
-      const endDate = new Date(userLatestPurchases[userId].end_date);
+    // Process each user and find their latest end_date
+    usersWithPurchases.forEach((user: any) => {
+      // user_purchases is an array, find the latest end_date
+      let latestEndDate: Date | null = null;
       
-      if (endDate < todayDate) {
-        expiredUserIds.push(userId);
+      user.user_purchases.forEach((purchase: any) => {
+        const endDate = new Date(purchase.end_date);
+        if (!latestEndDate || endDate > latestEndDate) {
+          latestEndDate = endDate;
+        }
+      });
+      
+      // Check if the latest end_date is expired
+      if (latestEndDate && latestEndDate < todayDate) {
+        expiredUserIds.push(user.user_id);
+        console.log(`User ${user.user_id} expired on ${latestEndDate.toISOString().split('T')[0]}`);
       }
     });
 
@@ -158,7 +154,7 @@ const UserManagement = () => {
   // Refresh users after updating statuses
 } catch (error: any) {
   console.error('Error updating expired user status:', error);
-  throw error; // Re-throw if you want calling code to handle it
+  throw error;
 }finally{
         fetchUsers();
     }
