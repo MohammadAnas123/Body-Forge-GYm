@@ -98,7 +98,9 @@ const UserManagement = () => {
           .eq('is_blacklisted', false)
           .eq('user_purchases.payment_status', 'completed')
           .order('user_purchases.end_date', { ascending: false });
-
+        
+        console.log("usersWithPurchases:"+JSON.stringify(usersWithPurchases));
+        console.log("error:"+joinError);
         if (joinError) throw joinError;
 
         if (usersWithPurchases && usersWithPurchases.length > 0) {
