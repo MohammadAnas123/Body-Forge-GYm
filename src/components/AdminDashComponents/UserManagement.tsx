@@ -97,7 +97,7 @@ const UserManagement = () => {
           .eq('admin_approved', true)
           .eq('is_blacklisted', false)
           .eq('user_purchases.payment_status', 'completed')
-          .order('user_purchases.end_date', { ascending: false });
+          .order('user_purchases.end_date', {foreignTable: 'user_purchases', ascending: false });
         
         console.log("usersWithPurchases:"+JSON.stringify(usersWithPurchases));
         console.log("error:"+joinError);
