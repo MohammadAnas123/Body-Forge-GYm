@@ -93,7 +93,7 @@ const UserManagement = () => {
         payment_status
       )
     `)
-    .eq('status', 'active')
+    .in('status', ['active', 'inactive'])
     .eq('admin_approved', true)
     .eq('is_blacklisted', false)
     .eq('user_purchases.payment_status', 'completed')
