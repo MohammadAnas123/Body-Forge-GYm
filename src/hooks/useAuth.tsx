@@ -18,7 +18,7 @@ export const useAuth = () => {
   // Initialize loading to true
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  
+    
   // Track if we're fetching to prevent duplicate calls
   const fetchingRef = useRef(false);
   const mountedRef = useRef(true);
@@ -49,7 +49,7 @@ export const useAuth = () => {
       if (adminError) {
         console.error('❌ Admin query error (by ID):', adminError);
       }
-      
+        
       if (!adminData && !adminError) {
         // Try by email if not found by ID and no ID error
         const result = await supabase
@@ -57,7 +57,7 @@ export const useAuth = () => {
           .select('admin_name, admin_email, status, admin_id')
           .ilike('admin_email', lowerEmail)
           .maybeSingle();
-        
+            
         adminData = result.data;
         adminError = result.error;
 
@@ -90,7 +90,7 @@ export const useAuth = () => {
         if (memberError) {
             console.error('❌ User query error (by ID):', memberError);
         }
-        
+            
         if (!memberData && !memberError) {
           // Try by email if not found by ID and no ID error
           const result = await supabase
@@ -98,10 +98,10 @@ export const useAuth = () => {
             .select('user_name, email, user_id, status, admin_approved')
             .ilike('email', lowerEmail)
             .maybeSingle();
-            
+                
           memberData = result.data;
           memberError = result.error;
-          
+              
           if (memberError) {
               console.error('❌ User query error (by email):', memberError);
           }
@@ -112,7 +112,7 @@ export const useAuth = () => {
         if (memberData) {
           console.log('✨ USER FOUND:', memberData);
           userDataFound = true;
-          
+            
           if (!memberData.admin_approved) {
             console.warn('⚠️ User not approved, signing out...');
             await supabase.auth.signOut();
@@ -124,7 +124,7 @@ export const useAuth = () => {
             });
             // Setting userData to null immediately ensures unapproved user data isn't used
             setUserData(null);
-            setUser(null); 
+            setUser(null);  
           } else {
             setUserData({
               id: userId,
@@ -172,11 +172,11 @@ export const useAuth = () => {
 
     const initializeAuth = async () => {
       console.log('🚀 Initializing auth...');
-      
+        
       // 1. Get initial session
       console.log('📱 Getting session...');
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+        
       if (error) {
         console.error('❌ Session error:', error);
         // Handle error, but still set loading to false
@@ -193,14 +193,14 @@ export const useAuth = () => {
         setUser(null);
         setUserData(null);
       }
-      
+        
       // 3. Set up auth listener (non-blocking)
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
           console.log('🔄 Auth event:', event, session?.user?.email);
-          
+            
           if (!mountedRef.current) return;
-          
+            
           if (session?.user) {
             setUser(session.user);
             await fetchUserData(session.user.id, session.user.email || '');
@@ -208,13 +208,31 @@ export const useAuth = () => {
             setUser(null);
             setUserData(null);
           }
-          
-          // Only set loading false here if the initial state hasn't been set yet
-          // In this structure, the initial state is handled below, outside the listener.
         }
       );
-      
+        
       authSubscription = subscription;
+
+      // 🌟 FIX: Add listener to force session refresh on tab focus 🌟
+      const handleVisibilityChange = async () => {
+          if (document.visibilityState === 'visible') {
+              console.log('👀 Tab became visible, forcing Supabase session refresh...');
+              // Force a re-check of the session
+              const { data: { session: newSession } } = await supabase.auth.getSession();
+              
+              if (newSession?.user) {
+                setUser(newSession.user);
+                // Non-blocking call for data fetch
+                fetchUserData(newSession.user.id, newSession.user.email || ''); 
+              } else {
+                setUser(null);
+                setUserData(null);
+              }
+          }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      // ------------------------------------------------------------------
 
       // 4. Final step: Set loading to false once initial state is fully processed.
       if (mountedRef.current) {
@@ -232,6 +250,8 @@ export const useAuth = () => {
       if (authSubscription) {
         authSubscription.unsubscribe();
       }
+      // 🧹 CLEANUP: Remove the visibility listener
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchUserData]); // Dependencies are correct
 
@@ -241,16 +261,16 @@ export const useAuth = () => {
       console.log('👋 Signing out...');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+        
       // State is mostly handled by auth listener, but setting explicitly helps local cleanup
       setUser(null);
       setUserData(null);
-      
+        
       toast({
         title: 'Success',
         description: 'Logged out successfully',
       });
-      
+        
       window.location.href = '#home'; // Good for a non-SPA redirect or hash change
       console.log('✅ Signed out successfully');
     } catch (error: any) {

@@ -81,7 +81,7 @@ const MemberDashboard = () => {
 
   const { toast } = useToast();
   const navigate = useNavigate();
-
+  
   const handleLogout = useCallback(async () => {
     try {
       await signOut();
@@ -91,7 +91,7 @@ const MemberDashboard = () => {
         description: 'You have been successfully logged out',
       });
       
-      navigate('/');
+      window.location.href = '/#home'; 
     } catch (error) {
       console.error('Logout error:', error);
       toast({
