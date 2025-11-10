@@ -35,7 +35,6 @@ const MemberDashboard = () => {
   const [workoutLogs, setWorkoutLogs] = useState([]);
   const [goals, setGoals] = useState([]);
   
-  // ... (rest of the state declarations)
   // BMI Calculator state
   const [bmiData, setBmiData] = useState({ height: '', weight: '', bmi: null, category: '' });
   
@@ -81,7 +80,7 @@ const MemberDashboard = () => {
 
   const { toast } = useToast();
   const navigate = useNavigate();
-  
+
   const handleLogout = useCallback(async () => {
     try {
       await signOut();
@@ -117,8 +116,6 @@ const MemberDashboard = () => {
   }, [user, authLoading]); // Dependency includes authLoading now
 
   const fetchAllData = async () => {
-    console.log('[MemberDashboard] fetchAllData: start for user', user?.id);
-
     // 4. Set local loading state to true
     setIsDataLoading(true); 
     setError(null);
@@ -131,37 +128,33 @@ const MemberDashboard = () => {
         setIsDataLoading(false);
       }, 15000);
 
-      // Fetch user profile
-      console.log('[MemberDashboard] fetching profile');
       // Ensure user.id exists before making the call
       if (!user?.id) {
           throw new Error("User ID is missing for data fetch.");
       }
 
+      // Fetch user profile
       const { data: profile, error: profileError } = await supabase
         .from('user_master')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
-      console.log('[MemberDashboard] profile result', { profile, profileError });
       if (profileError) throw profileError;
       setUserProfile(profile);
 
       // Fetch measurements
-      console.log('[MemberDashboard] fetching measurements');
       const { data: measurementsData, error: measurementsError } = await supabase
         .from('user_measurements')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true });
 
-      console.log('[MemberDashboard] measurements result', { measurementsError });
+      // console.log('[MemberDashboard] measurements result', { measurementsError });
       if (measurementsError) throw measurementsError;
       setMeasurements(measurementsData || []);
 
       // Fetch active membership
-      console.log('[MemberDashboard] fetching membership');
       const { data: membershipData, error: membershipError } = await supabase
         .from('user_purchases')
         .select('*')
@@ -170,10 +163,8 @@ const MemberDashboard = () => {
         .gte('end_date', new Date().toISOString())
         .order('end_date', { ascending: false })
         .limit(1)
-        .maybeSingle(); // Changed .single() to .maybeSingle() to handle no active membership gracefully
+        .maybeSingle();
 
-      console.log('[MemberDashboard] membership result', { membershipData, membershipError });
-      // Removed the throw for membershipError since we use maybeSingle()
       if (membershipData) {
         setActiveMembership(membershipData);
       } else {
@@ -181,7 +172,6 @@ const MemberDashboard = () => {
       }
 
       // Fetch workout logs
-      console.log('[MemberDashboard] fetching workouts');
       const { data: workoutsData, error: workoutsError } = await supabase
         .from('workout_logs')
         .select('*')
@@ -189,15 +179,18 @@ const MemberDashboard = () => {
         .order('date', { ascending: false })
         .limit(20);
 
-      console.log('[MemberDashboard] workouts result', { workoutsError });
       if (!workoutsError) {
         setWorkoutLogs(workoutsData || []);
       }
 
-      // fetchTodayMeasurement(); // kept commented as in original
     } catch (err) {
       console.error('[MemberDashboard] Error fetching data:', err);
       setError('Failed to load data. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to load dashboard data. Please refresh the page.',
+        variant: 'destructive',
+      });
     } finally {
       if (localTimeout) {
         clearTimeout(localTimeout as any);
@@ -205,11 +198,9 @@ const MemberDashboard = () => {
       }
       // 5. Set local loading state to false
       setIsDataLoading(false); 
-      console.log('[MemberDashboard] fetchAllData: finished');
     }
   };
 
-  // ... (rest of the functions like getDaysRemaining, addMeasurement, etc. remain the same)
   const getDaysRemaining = () => {
     if (!activeMembership) return 0;
     const endDate = new Date(activeMembership.end_date);
@@ -220,7 +211,11 @@ const MemberDashboard = () => {
   // Add new measurement
   const addMeasurement = async () => {
     if (!newMeasurement.weight) {
-      alert('Please enter at least weight');
+      toast({
+        title: 'Validation Error',
+        description: 'Please enter at least weight',
+        variant: 'destructive',
+      });
       return;
     }
     try {
@@ -242,9 +237,16 @@ const MemberDashboard = () => {
  
        if (error) {
          console.error("Update error:", error);
-         alert("Error updating measurement.");
+         toast({
+           title: 'Error',
+           description: 'Error updating measurement. Please try again.',
+           variant: 'destructive',
+         });
        } else {
-         alert("Measurement updated successfully!");
+         toast({
+           title: 'Success',
+           description: 'Measurement updated successfully!',
+         });
        }
      } else {
        const { data, error } = await supabase
@@ -254,9 +256,16 @@ const MemberDashboard = () => {
  
        if (error) {
          console.error("Insert error:", error);
-         alert("Error saving measurement.");
+         toast({
+           title: 'Error',
+           description: 'Error saving measurement. Please try again.',
+           variant: 'destructive',
+         });
        } else {
-         alert("Measurement saved successfully!");
+         toast({
+           title: 'Success',
+           description: 'Measurement saved successfully!',
+         });
        }
      }
       // Refresh measurements
@@ -274,14 +283,22 @@ const MemberDashboard = () => {
       setShowMeasurementModal(false);
     } catch (err) {
       console.error('Error adding measurement:', err);
-      alert('Failed to add measurement. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to add measurement. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
   // Add new workout
   const addWorkout = async () => {
     if (!newWorkout.type || !newWorkout.duration) {
-      alert('Please enter at least workout type and duration');
+      toast({
+        title: 'Validation Error',
+        description: 'Please enter at least workout type and duration',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -301,6 +318,11 @@ const MemberDashboard = () => {
 
       if (error) throw error;
 
+      toast({
+        title: 'Success',
+        description: 'Workout logged successfully!',
+      });
+
       // Refresh workouts
       await fetchAllData();
       
@@ -314,7 +336,11 @@ const MemberDashboard = () => {
       setShowWorkoutModal(false);
     } catch (err) {
       console.error('Error adding workout:', err);
-      alert('Failed to add workout. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to add workout. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -478,8 +504,6 @@ const MemberDashboard = () => {
         handleLogout={handleLogout}
       />
 
-      {/* ... (rest of the component JSX is unchanged) */}
-    
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6">
         {/* Overview Tab */}
         {activeTab === 'overview' && (

@@ -27,7 +27,7 @@ export const useAuth = () => {
   const fetchUserData = useCallback(async (userId: string, email: string) => {
     if (!mountedRef.current) return; // Exit early if unmounted
     if (fetchingRef.current) {
-      console.log('⏭️ Skipping fetch - already in progress');
+      // console.log('⏭️ Skipping fetch - already in progress');
       return;
     }
 
@@ -36,7 +36,7 @@ export const useAuth = () => {
     let userDataFound = false;
 
     try {
-      console.log('🔍 [START] Fetching user data for:', { userId, email });
+      // console.log('🔍 [START] Fetching user data for:', { userId, email });
       const lowerEmail = email.trim().toLowerCase();
 
       // --- Attempt 1: Check Admin by ID then Email ---
@@ -47,24 +47,24 @@ export const useAuth = () => {
         .maybeSingle();
 
       if (adminError) {
-        console.error('❌ Admin query error (by ID):', adminError);
+        // console.error('❌ Admin query error (by ID):', adminError);
       }
         
-      if (!adminData && !adminError) {
-        // Try by email if not found by ID and no ID error
-        const result = await supabase
-          .from('admin_master')
-          .select('admin_name, admin_email, status, admin_id')
-          .ilike('admin_email', lowerEmail)
-          .maybeSingle();
+      // if (!adminData && !adminError) {
+      //   // Try by email if not found by ID and no ID error
+      //   const result = await supabase
+      //     .from('admin_master')
+      //     .select('admin_name, admin_email, status, admin_id')
+      //     .ilike('admin_email', lowerEmail)
+      //     .maybeSingle();
             
-        adminData = result.data;
-        adminError = result.error;
+      //   adminData = result.data;
+      //   adminError = result.error;
 
-        if (adminError) {
-            console.error('❌ Admin query error (by email):', adminError);
-        }
-      }
+      //   if (adminError) {
+      //       console.error('❌ Admin query error (by email):', adminError);
+      //   }
+      // }
 
       if (!mountedRef.current) return; // Re-check mounted after awaited calls
 
@@ -91,30 +91,30 @@ export const useAuth = () => {
             console.error('❌ User query error (by ID):', memberError);
         }
             
-        if (!memberData && !memberError) {
-          // Try by email if not found by ID and no ID error
-          const result = await supabase
-            .from('user_master')
-            .select('user_name, email, user_id, status, admin_approved')
-            .ilike('email', lowerEmail)
-            .maybeSingle();
+        // if (!memberData && !memberError) {
+        //   // Try by email if not found by ID and no ID error
+        //   const result = await supabase
+        //     .from('user_master')
+        //     .select('user_name, email, user_id, status, admin_approved')
+        //     .ilike('email', lowerEmail)
+        //     .maybeSingle();
                 
-          memberData = result.data;
-          memberError = result.error;
+        //   memberData = result.data;
+        //   memberError = result.error;
               
-          if (memberError) {
-              console.error('❌ User query error (by email):', memberError);
-          }
-        }
+        //   if (memberError) {
+        //       console.error('❌ User query error (by email):', memberError);
+        //   }
+        // }
 
         if (!mountedRef.current) return; // Re-check mounted
 
         if (memberData) {
-          console.log('✨ USER FOUND:', memberData);
+          // console.log('✨ USER FOUND:', memberData);
           userDataFound = true;
             
           if (!memberData.admin_approved) {
-            console.warn('⚠️ User not approved, signing out...');
+            // console.warn('⚠️ User not approved, signing out...');
             await supabase.auth.signOut();
             // Note: The auth listener handles the state reset (user/userData = null)
             toast({
@@ -139,7 +139,7 @@ export const useAuth = () => {
 
       // --- Not Found Case ---
       if (!userDataFound) {
-        console.warn('⚠️ User not found in either table, using defaults');
+        // console.warn('⚠️ User not found in either table, using defaults');
         setUserData({
           id: userId,
           name: email.split('@')[0],
@@ -148,10 +148,10 @@ export const useAuth = () => {
         });
       }
 
-      console.log(`⏱️ Total fetch time: ${(performance.now() - startTime).toFixed(2)}ms`);
+      // console.log(`⏱️ Total fetch time: ${(performance.now() - startTime).toFixed(2)}ms`);
 
     } catch (error) {
-      console.error('💥 CRITICAL ERROR in fetchUserData:', error);
+      // console.error('💥 CRITICAL ERROR in fetchUserData:', error);
       if (mountedRef.current) {
         setUserData({
           id: userId,
@@ -171,25 +171,25 @@ export const useAuth = () => {
     let authSubscription: any = null;
 
     const initializeAuth = async () => {
-      console.log('🚀 Initializing auth...');
+      // console.log('🚀 Initializing auth...');
         
       // 1. Get initial session
-      console.log('📱 Getting session...');
+      // console.log('📱 Getting session...');
       const { data: { session }, error } = await supabase.auth.getSession();
         
       if (error) {
-        console.error('❌ Session error:', error);
+        // console.error('❌ Session error:', error);
         // Handle error, but still set loading to false
       }
 
       // 2. Process initial session
       if (mountedRef.current && session?.user) {
-        console.log('✅ Session retrieved, processing user:', session.user.email);
+        // console.log('✅ Session retrieved, processing user:', session.user.email);
         setUser(session.user);
         // Await fetching user data to ensure all initial work is done before setting loading=false
         await fetchUserData(session.user.id, session.user.email || '');
       } else {
-        console.log('✅ Session retrieved: No user');
+        // console.log('✅ Session retrieved: No user');
         setUser(null);
         setUserData(null);
       }
@@ -197,7 +197,7 @@ export const useAuth = () => {
       // 3. Set up auth listener (non-blocking)
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
-          console.log('🔄 Auth event:', event, session?.user?.email);
+          // console.log('🔄 Auth event:', event, session?.user?.email);
             
           if (!mountedRef.current) return;
             
@@ -216,7 +216,7 @@ export const useAuth = () => {
       // 🌟 FIX: Add listener to force session refresh on tab focus 🌟
       const handleVisibilityChange = async () => {
           if (document.visibilityState === 'visible') {
-              console.log('👀 Tab became visible, forcing Supabase session refresh...');
+              // console.log('👀 Tab became visible, forcing Supabase session refresh...');
               // Force a re-check of the session
               const { data: { session: newSession } } = await supabase.auth.getSession();
               
@@ -237,14 +237,14 @@ export const useAuth = () => {
       // 4. Final step: Set loading to false once initial state is fully processed.
       if (mountedRef.current) {
         setLoading(false);
-        console.log('✅ Auth initialization complete and loading set to false');
+        // console.log('✅ Auth initialization complete and loading set to false');
       }
     };
 
     initializeAuth();
 
     return () => {
-      console.log('🧹 Cleanup: Unmounting auth hook');
+      // console.log('🧹 Cleanup: Unmounting auth hook');
       mountedRef.current = false;
       fetchingRef.current = false;
       if (authSubscription) {
@@ -258,7 +258,7 @@ export const useAuth = () => {
   // --- Sign Out Logic (Unchanged) ---
   const signOut = async () => {
     try {
-      console.log('👋 Signing out...');
+      // console.log('👋 Signing out...');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
         
@@ -272,9 +272,9 @@ export const useAuth = () => {
       });
         
       window.location.href = '#home'; // Good for a non-SPA redirect or hash change
-      console.log('✅ Signed out successfully');
+      // console.log('✅ Signed out successfully');
     } catch (error: any) {
-      console.error('💥 Error logging out:', error);
+      // console.error('💥 Error logging out:', error);
       toast({
         title: 'Error',
         description: error.message,

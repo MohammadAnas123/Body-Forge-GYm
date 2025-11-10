@@ -104,7 +104,7 @@ const UserManagement = () => {
     throw joinError;
   }
 
-  console.log("usersWithPurchases:", JSON.stringify(usersWithPurchases));
+  // console.log("usersWithPurchases:", JSON.stringify(usersWithPurchases));
 
   if (usersWithPurchases && usersWithPurchases.length > 0) {
     const expiredUserIds: string[] = [];
@@ -125,11 +125,11 @@ const UserManagement = () => {
       // Check if the latest end_date is expired
       if (latestEndDate && latestEndDate < todayDate) {
         expiredUserIds.push(user.user_id);
-        console.log(`User ${user.user_id} expired on ${latestEndDate.toISOString().split('T')[0]}`);
+        // console.log(`User ${user.user_id} expired on ${latestEndDate.toISOString().split('T')[0]}`);
       }
     });
 
-    console.log(`Found ${expiredUserIds.length} expired users:`, expiredUserIds);
+    // console.log(`Found ${expiredUserIds.length} expired users:`, expiredUserIds);
 
     // Batch update all expired users
     if (expiredUserIds.length > 0) {
@@ -143,7 +143,7 @@ const UserManagement = () => {
         throw updateError;
       }
       
-      console.log(`Successfully updated ${expiredUserIds.length} users to expired status`);
+      // console.log(`Successfully updated ${expiredUserIds.length} users to expired status`);
     } else {
       console.log('No expired users found');
     }
@@ -643,13 +643,17 @@ const UserManagement = () => {
                         Pending
                       </span>
                     ) : (
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        user.status === 'active'
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
+                      <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                user.status === 'active'
+                                ? 'bg-green-100 text-green-800'
+                                : user.status === 'expired'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                            >
+                            {user.status}
+                            </span>
                     )}
                   </div>
                   

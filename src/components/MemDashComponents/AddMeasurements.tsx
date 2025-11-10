@@ -46,7 +46,7 @@ const AddMeasurements = ({
         .gte("created_at", startOfDay.toISOString())
         .lte("created_at", endOfDay.toISOString())
         .single();
-      console.log("Data:::"+data);
+      // console.log("Data:::"+data);
       if (error && error.code !== "PGRST116") console.error("Fetch error:", error);
       if (data) {
         setNewMeasurement({

@@ -119,7 +119,7 @@ const WorkoutDashboard = ({
                             <button
                               onClick={() => {
                                 // Add your edit logic here
-                                console.log('Edit workout:', workout.id);
+                                // console.log('Edit workout:', workout.id);
                                 setShowActions(false);
                               }}
                               disabled={!isToday}
@@ -136,7 +136,7 @@ const WorkoutDashboard = ({
                               onClick={() => {
                                 // Add your delete logic here
                                 if (confirm('Are you sure you want to delete this workout log?')) {
-                                  console.log('Delete workout:', workout.id);
+                                  // console.log('Delete workout:', workout.id);
                                   setShowActions(false);
                                 }
                               }}
